@@ -28,8 +28,11 @@ app.add_middleware(
 )
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-# Default model: gemini-1.5-flash is fast, accurate, and cost-effective for oral exam evaluation
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+# gemini-1.5-* models have been retired by Google. If the configured model is missing,
+# we automatically fall back through currently available Flash models.
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+_active_model: Optional[str] = None  # first model that worked, cached for later calls
 
 class OralEvaluationRequest(BaseModel):
     topic: str = Field(..., example="Convolutional Neural Networks (CNNs)")
@@ -48,66 +51,93 @@ class OralEvaluationResponse(BaseModel):
     feedback: str = Field(..., description="Constructive peer coaching")
     model_answer: str = Field(..., description="Professor's 30-second gold standard answer")
     examiner_tip: str = Field(..., description="Practical tip for speaking during oral exam")
+    source: str = Field(default="gemini", description="gemini | heuristic")
 
 class GenerateQuestionRequest(BaseModel):
     topic: str = Field(..., example="Transfer Learning")
     difficulty: Optional[str] = Field(default="moderate", example="tricky")
+    avoid: Optional[List[str]] = Field(default=[], description="Questions already asked, to avoid repeats")
 
 class ChatStudyBuddyRequest(BaseModel):
     topic: Optional[str] = Field(default="General Computer Vision")
     user_message: str = Field(...)
-    history: Optional[List[dict]] = Field(default=[])
+    history: Optional[List[dict]] = Field(default=[], description="[{role: 'user'|'model', text: str}]")
 
-def call_gemini_api(prompt: str, system_instruction: str = "") -> str:
-    """Calls Google AI Studio Gemini API using urllib with standard JSON payload."""
+def _post_generate(model: str, payload: dict) -> str:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as response:
+        res_json = json.loads(response.read().decode("utf-8"))
+    candidates = res_json.get("candidates", [])
+    if candidates:
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        if text:
+            return text
+    return "{}"
+
+def call_gemini_api(prompt: str, system_instruction: str = "", json_mode: bool = False,
+                    history: Optional[List[dict]] = None) -> str:
+    """Calls Google AI Studio Gemini API, falling back across models if one is unavailable."""
+    global _active_model
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set on the server environment.")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    
     contents = []
-    contents.append({
-        "role": "user",
-        "parts": [{"text": prompt}]
-    })
+    for turn in (history or [])[-12:]:
+        role = "model" if turn.get("role") in ("model", "assistant") else "user"
+        text = str(turn.get("text", ""))[:4000]
+        if text:
+            contents.append({"role": role, "parts": [{"text": text}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
 
-    payload = {
-        "contents": contents,
-        "generationConfig": {
-            "temperature": 0.4,
-            "maxOutputTokens": 1024,
-        }
-    }
-
+    generation_config = {"temperature": 0.4, "maxOutputTokens": 8192}
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+    payload = {"contents": contents, "generationConfig": generation_config}
     if system_instruction:
-        payload["systemInstruction"] = {
-            "parts": [{"text": system_instruction}]
-        }
+        payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
-    data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"}
-    )
+    order = [m for m in [_active_model, GEMINI_MODEL, *FALLBACK_MODELS] if m]
+    tried, last_error = [], None
+    for model in dict.fromkeys(order):
+        tried.append(model)
+        try:
+            text = _post_generate(model, payload)
+            if _active_model != model:
+                logger.info(f"Using Gemini model: {model}")
+            _active_model = model
+            return text
+        except urllib.error.HTTPError as e:
+            err_msg = e.read().decode("utf-8")
+            last_error = (e.code, err_msg)
+            # 404 = model retired / unknown; 400 can mean unsupported config for that model. Try next.
+            if e.code in (404, 400):
+                logger.warning(f"Model {model} unavailable ({e.code}); trying next.")
+                continue
+            logger.error(f"Gemini API HTTP Error {e.code}: {err_msg}")
+            raise HTTPException(status_code=502, detail=f"Google AI Studio API error ({e.code}): {err_msg[:500]}")
+        except Exception as e:
+            logger.error(f"Error calling Gemini: {str(e)}")
+            raise HTTPException(status_code=502, detail=f"Gemini request failed: {str(e)}")
+    code, msg = last_error or (500, "unknown")
+    raise HTTPException(status_code=502, detail=f"No Gemini model available (tried {tried}). Last error {code}: {msg[:500]}")
 
+def _parse_json(raw: str) -> dict:
+    clean = raw.strip()
+    if clean.startswith("```"):
+        clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
+        if clean.rstrip().endswith("```"):
+            clean = clean.rstrip()[:-3]
+    clean = clean.strip()
     try:
-        with urllib.request.urlopen(req, timeout=20) as response:
-            res_body = response.read().decode("utf-8")
-            res_json = json.loads(res_body)
-            candidates = res_json.get("candidates", [])
-            if candidates:
-                parts = candidates[0].get("content", {}).get("parts", [])
-                if parts:
-                    return parts[0].get("text", "")
-            return "{}"
-    except urllib.error.HTTPError as e:
-        err_msg = e.read().decode("utf-8")
-        logger.error(f"Gemini API HTTP Error {e.code}: {err_msg}")
-        raise HTTPException(status_code=e.code, detail=f"Google AI Studio API error: {err_msg}")
-    except Exception as e:
-        logger.error(f"Error calling Gemini: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Gemini request failed: {str(e)}")
+        return json.loads(clean)
+    except Exception:
+        start, end = clean.find("{"), clean.rfind("}")
+        if start != -1 and end > start:
+            return json.loads(clean[start:end + 1])
+        raise
 
 @app.get("/")
 def read_root():
@@ -123,7 +153,7 @@ def health_check():
     return {
         "status": "healthy",
         "ai_studio_ready": bool(GEMINI_API_KEY),
-        "model": GEMINI_MODEL
+        "model": _active_model or GEMINI_MODEL
     }
 
 @app.post("/api/evaluate-oral", response_model=OralEvaluationResponse)
@@ -147,7 +177,8 @@ def evaluate_oral_defense(req: OralEvaluationRequest):
             terms_missed=[kw for kw in req.expected_keywords if kw not in matches],
             feedback="Note: Set GEMINI_API_KEY in Render environment to enable full AI Studio Socratic analysis.",
             model_answer="A complete oral answer directly states the 1-sentence definition, outlines the mathematical mechanism, and notes the trade-off.",
-            examiner_tip="Speak at a steady cadence and avoid filler words."
+            examiner_tip="Speak at a steady cadence and avoid filler words.",
+            source="heuristic"
         )
 
     system_instruction = (
@@ -164,6 +195,9 @@ Oral Exam Question: {req.question}
 Expected Concepts/Keywords: {', '.join(req.expected_keywords)}
 Student's Spoken Answer: "{req.student_answer}"
 
+Be honest: an empty, off-topic or one-line answer should score below 40. Be specific in feedback,
+naming exactly which idea was missing or wrong.
+
 Evaluate the student's answer and output ONLY a JSON object with this exact structure:
 {{
   "score": <integer from 0 to 100>,
@@ -178,18 +212,12 @@ Evaluate the student's answer and output ONLY a JSON object with this exact stru
   "examiner_tip": "<One practical speaking tip for the oral exam>"
 }}
 """
-    raw_response = call_gemini_api(prompt, system_instruction)
-    clean_json = raw_response.strip()
-    if clean_json.startswith("```json"):
-        clean_json = clean_json[7:]
-    if clean_json.startswith("```"):
-        clean_json = clean_json[3:]
-    if clean_json.endswith("```"):
-        clean_json = clean_json[:-3]
-    clean_json = clean_json.strip()
+    raw_response = call_gemini_api(prompt, system_instruction, json_mode=True)
 
     try:
-        parsed = json.loads(clean_json)
+        parsed = _parse_json(raw_response)
+        parsed["score"] = int(max(0, min(100, int(parsed.get("score", 0)))))
+        parsed["source"] = "gemini"
         return OralEvaluationResponse(**parsed)
     except Exception as e:
         logger.error(f"Failed to parse Gemini response: {raw_response}")
@@ -204,7 +232,8 @@ Evaluate the student's answer and output ONLY a JSON object with this exact stru
             terms_missed=[],
             feedback="Solid oral intuition. Ensure you clearly articulate the trade-offs.",
             model_answer="State the core claim, explain the feature map mechanics, and conclude with the computational trade-off.",
-            examiner_tip="Take a breath before answering and structure your thoughts into 3 concise beats."
+            examiner_tip="Take a breath before answering and structure your thoughts into 3 concise beats.",
+            source="heuristic"
         )
 
 @app.post("/api/generate-question")
@@ -218,7 +247,10 @@ def generate_oral_question(req: GenerateQuestionRequest):
         }
 
     system_instruction = "You are a university lecturer creating realistic 10-minute oral exam questions for Computer Vision & Deep Learning."
+    avoid = "\n".join(f"- {q}" for q in (req.avoid or [])[-10:])
     prompt = f"""Generate 1 realistic, probing oral exam question for the topic '{req.topic}' at a '{req.difficulty}' difficulty level.
+Questions already asked (do not repeat these):
+{avoid or '- none'}
 Return ONLY a JSON object:
 {{
   "question": "<the question spoken by the lecturer>",
@@ -226,10 +258,11 @@ Return ONLY a JSON object:
   "model_answer": "<ideal 30-second response>"
 }}
 """
-    raw_response = call_gemini_api(prompt, system_instruction)
-    clean_json = raw_response.strip().replace("```json", "").replace("```", "").strip()
+    raw_response = call_gemini_api(prompt, system_instruction, json_mode=True)
     try:
-        return json.loads(clean_json)
+        data = _parse_json(raw_response)
+        data.setdefault("difficulty", req.difficulty)
+        return data
     except Exception:
         return {
             "question": f"Explain the fundamental mechanism of {req.topic} and how you diagnose its failure modes.",
@@ -247,8 +280,11 @@ def study_buddy_chat(req: ChatStudyBuddyRequest):
 
     system_instruction = (
         "You are an encouraging, brilliant Computer Vision study buddy preparing a student for an oral exam tomorrow. "
-        "Explain concepts intuitively from first principles. Keep explanations concise, scannable, and end with a quick checkpoint question."
+        "Explain concepts intuitively from first principles, as if to a curious beginner. Use short paragraphs, "
+        "simple Markdown (bold, bullet lists, inline code), and concrete numbers or examples. "
+        "Keep replies under ~200 words unless asked for more, and end with one quick checkpoint question. "
+        "If the student answers your previous checkpoint question, tell them clearly whether they were right first."
     )
-    prompt = f"Topic: {req.topic}\nStudent says: {req.user_message}\nExplain intuitively and quiz them on the concept."
-    reply = call_gemini_api(prompt, system_instruction)
+    prompt = f"Current topic: {req.topic}\nStudent says: {req.user_message}"
+    reply = call_gemini_api(prompt, system_instruction, history=req.history)
     return {"reply": reply}
