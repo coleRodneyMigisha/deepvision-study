@@ -31,7 +31,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # gemini-1.5-* models have been retired by Google. If the configured model is missing,
 # we automatically fall back through currently available Flash models.
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.0-flash"]
 _active_model: Optional[str] = None  # first model that worked, cached for later calls
 
 class OralEvaluationRequest(BaseModel):
@@ -112,9 +112,12 @@ def call_gemini_api(prompt: str, system_instruction: str = "", json_mode: bool =
         except urllib.error.HTTPError as e:
             err_msg = e.read().decode("utf-8")
             last_error = (e.code, err_msg)
-            # 404 = model retired / unknown; 400 can mean unsupported config for that model. Try next.
-            if e.code in (404, 400):
+            # 404 = retired/unknown model, 400 = unsupported config, 429/500/503 = overloaded or
+            # quota exhausted for that model. In all these cases try the next model.
+            if e.code in (400, 404, 429, 500, 503):
                 logger.warning(f"Model {model} unavailable ({e.code}); trying next.")
+                if _active_model == model:
+                    _active_model = None
                 continue
             logger.error(f"Gemini API HTTP Error {e.code}: {err_msg}")
             raise HTTPException(status_code=502, detail=f"Google AI Studio API error ({e.code}): {err_msg[:500]}")
