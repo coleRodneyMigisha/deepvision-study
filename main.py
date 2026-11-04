@@ -30,8 +30,8 @@ app.add_middleware(
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # gemini-1.5-* models have been retired by Google. If the configured model is missing,
 # we automatically fall back through currently available Flash models.
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-flash-lite-latest", "gemini-2.0-flash"]
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+FALLBACK_MODELS = ["gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
 _active_model: Optional[str] = None  # first model that worked, cached for later calls
 
 class OralEvaluationRequest(BaseModel):
@@ -67,7 +67,7 @@ def _post_generate(model: str, payload: dict) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
     req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
                                  headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as response:
+    with urllib.request.urlopen(req, timeout=30) as response:
         res_json = json.loads(response.read().decode("utf-8"))
     candidates = res_json.get("candidates", [])
     if candidates:
@@ -122,8 +122,12 @@ def call_gemini_api(prompt: str, system_instruction: str = "", json_mode: bool =
             logger.error(f"Gemini API HTTP Error {e.code}: {err_msg}")
             raise HTTPException(status_code=502, detail=f"Google AI Studio API error ({e.code}): {err_msg[:500]}")
         except Exception as e:
-            logger.error(f"Error calling Gemini: {str(e)}")
-            raise HTTPException(status_code=502, detail=f"Gemini request failed: {str(e)}")
+            # timeouts / network errors: try the next model rather than failing outright
+            logger.warning(f"Model {model} failed ({e}); trying next.")
+            last_error = (504, str(e))
+            if _active_model == model:
+                _active_model = None
+            continue
     code, msg = last_error or (500, "unknown")
     raise HTTPException(status_code=502, detail=f"No Gemini model available (tried {tried}). Last error {code}: {msg[:500]}")
 
