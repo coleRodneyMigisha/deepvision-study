@@ -1,0 +1,2305 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DeepVision Mastery: Oral Exam Defense Simulator & Interactive Labs</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17">
+    // --- CLOUDFLARE TO RENDER BACKEND INTEGRATION ---
+    const btnOpenBackendModal = document.getElementById('btn-open-backend-modal');
+    const backendModal = document.getElementById('backend-modal');
+    const btnCloseBackendModal = document.getElementById('btn-close-backend-modal');
+    const backendUrlInput = document.getElementById('backend-url-input');
+    const btnTestBackend = document.getElementById('btn-test-backend');
+    const btnSaveBackend = document.getElementById('btn-save-backend');
+    const backendStatusBox = document.getElementById('backend-status-box');
+    const backendDot = document.getElementById('backend-dot');
+    const backendStatusText = document.getElementById('backend-status-text');
+
+    let configuredBackendUrl = "";
+    try {
+      configuredBackendUrl = localStorage.getItem('deepvision_backend_url') || "";
+    } catch(e) {}
+
+    if (configuredBackendUrl) {
+      backendUrlInput.value = configuredBackendUrl;
+      backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+      backendStatusText.textContent = "AI Studio: Ready";
+    }
+
+    btnOpenBackendModal.addEventListener('click', () => {
+      backendModal.classList.remove('hidden');
+    });
+    btnCloseBackendModal.addEventListener('click', () => {
+      backendModal.classList.add('hidden');
+    });
+
+    btnSaveBackend.addEventListener('click', () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      configuredBackendUrl = url;
+      try {
+        localStorage.setItem('deepvision_backend_url', url);
+      } catch(e) {}
+      backendModal.classList.add('hidden');
+      if (url) {
+        backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        backendStatusText.textContent = "AI Studio: Connected";
+        showToast("Connected to Render AI Studio backend!", "🚀");
+      } else {
+        backendDot.className = "w-2 h-2 rounded-full bg-amber-400";
+        backendStatusText.textContent = "Mode: Client Heuristic";
+        showToast("Using client-side mode", "ℹ️");
+      }
+    });
+
+    btnTestBackend.addEventListener('click', async () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      if (!url) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-amber-950/50 text-amber-300 border border-amber-800/40 block";
+        backendStatusBox.textContent = "Please enter your Render URL (e.g. https://deepvision-backend.onrender.com)";
+        return;
+      }
+
+      backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-cyan-950/50 text-cyan-300 border border-cyan-800/40 block";
+      backendStatusBox.textContent = "Pinging " + url + "/health ... (Note: free Render instances wake up in ~30s on cold start)";
+
+      try {
+        const t0 = performance.now();
+        const res = await fetch(url + "/health");
+        const t1 = performance.now();
+        if (res.ok) {
+          const data = await res.json();
+          const latency = Math.round(t1 - t0);
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-emerald-950/50 text-emerald-300 border border-emerald-800/40 block";
+          backendStatusBox.innerHTML = "✓ Connected in " + latency + "ms!<br>AI Studio Key: " + (data.ai_studio_ready ? "Configured (Active)" : "Pending setup in Render env") + "<br>Model: " + (data.model || "gemini-1.5-flash");
+        } else {
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+          backendStatusBox.textContent = "HTTP Error " + res.status + " returned by backend.";
+        }
+      } catch (err) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+        backendStatusBox.textContent = "Connection failed: " + err.message + ". Check CORS or wait for Render to finish spinning up.";
+      }
+    });
+
+    // Helper to evaluate via Render AI Studio or Fallback
+    async function evaluateOralWithGemini(topic, question, studentAnswer, expectedKeywords) {
+      if (!configuredBackendUrl) return null; // fallback to local
+
+      try {
+        showToast("Consulting Gemini on Render...", "🤖");
+        const res = await fetch(configuredBackendUrl + "/api/evaluate-oral", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: topic,
+            question: question,
+            student_answer: studentAnswer,
+            expected_keywords: expectedKeywords
+          })
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.warn("Render backend call failed, using client heuristic:", err);
+      }
+      return null;
+    }
+
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js">
+    // --- CLOUDFLARE TO RENDER BACKEND INTEGRATION ---
+    const btnOpenBackendModal = document.getElementById('btn-open-backend-modal');
+    const backendModal = document.getElementById('backend-modal');
+    const btnCloseBackendModal = document.getElementById('btn-close-backend-modal');
+    const backendUrlInput = document.getElementById('backend-url-input');
+    const btnTestBackend = document.getElementById('btn-test-backend');
+    const btnSaveBackend = document.getElementById('btn-save-backend');
+    const backendStatusBox = document.getElementById('backend-status-box');
+    const backendDot = document.getElementById('backend-dot');
+    const backendStatusText = document.getElementById('backend-status-text');
+
+    let configuredBackendUrl = "";
+    try {
+      configuredBackendUrl = localStorage.getItem('deepvision_backend_url') || "";
+    } catch(e) {}
+
+    if (configuredBackendUrl) {
+      backendUrlInput.value = configuredBackendUrl;
+      backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+      backendStatusText.textContent = "AI Studio: Ready";
+    }
+
+    btnOpenBackendModal.addEventListener('click', () => {
+      backendModal.classList.remove('hidden');
+    });
+    btnCloseBackendModal.addEventListener('click', () => {
+      backendModal.classList.add('hidden');
+    });
+
+    btnSaveBackend.addEventListener('click', () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      configuredBackendUrl = url;
+      try {
+        localStorage.setItem('deepvision_backend_url', url);
+      } catch(e) {}
+      backendModal.classList.add('hidden');
+      if (url) {
+        backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        backendStatusText.textContent = "AI Studio: Connected";
+        showToast("Connected to Render AI Studio backend!", "🚀");
+      } else {
+        backendDot.className = "w-2 h-2 rounded-full bg-amber-400";
+        backendStatusText.textContent = "Mode: Client Heuristic";
+        showToast("Using client-side mode", "ℹ️");
+      }
+    });
+
+    btnTestBackend.addEventListener('click', async () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      if (!url) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-amber-950/50 text-amber-300 border border-amber-800/40 block";
+        backendStatusBox.textContent = "Please enter your Render URL (e.g. https://deepvision-backend.onrender.com)";
+        return;
+      }
+
+      backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-cyan-950/50 text-cyan-300 border border-cyan-800/40 block";
+      backendStatusBox.textContent = "Pinging " + url + "/health ... (Note: free Render instances wake up in ~30s on cold start)";
+
+      try {
+        const t0 = performance.now();
+        const res = await fetch(url + "/health");
+        const t1 = performance.now();
+        if (res.ok) {
+          const data = await res.json();
+          const latency = Math.round(t1 - t0);
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-emerald-950/50 text-emerald-300 border border-emerald-800/40 block";
+          backendStatusBox.innerHTML = "✓ Connected in " + latency + "ms!<br>AI Studio Key: " + (data.ai_studio_ready ? "Configured (Active)" : "Pending setup in Render env") + "<br>Model: " + (data.model || "gemini-1.5-flash");
+        } else {
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+          backendStatusBox.textContent = "HTTP Error " + res.status + " returned by backend.";
+        }
+      } catch (err) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+        backendStatusBox.textContent = "Connection failed: " + err.message + ". Check CORS or wait for Render to finish spinning up.";
+      }
+    });
+
+    // Helper to evaluate via Render AI Studio or Fallback
+    async function evaluateOralWithGemini(topic, question, studentAnswer, expectedKeywords) {
+      if (!configuredBackendUrl) return null; // fallback to local
+
+      try {
+        showToast("Consulting Gemini on Render...", "🤖");
+        const res = await fetch(configuredBackendUrl + "/api/evaluate-oral", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: topic,
+            question: question,
+            student_answer: studentAnswer,
+            expected_keywords: expectedKeywords
+          })
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.warn("Render backend call failed, using client heuristic:", err);
+      }
+      return null;
+    }
+
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    code, pre, .font-mono { font-family: 'Fira Code', monospace; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    .slider-thumb::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #38bdf8;
+      cursor: pointer;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full flex flex-col overflow-hidden select-none">
+
+  <!-- TOP HEADER / NAV -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 px-4 py-2.5 flex items-center justify-between z-30 shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-white font-bold text-lg">
+        👁️
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-extrabold tracking-tight text-white text-base">DeepVision</span>
+          <span class="bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-xs px-2 py-0.5 rounded-full font-medium">Oral Exam Simulator & Labs</span>
+        </div>
+        <p class="text-xs text-slate-400">10-Minute Oral Defense Prep • 9 Core Modules • Interactive Visuals</p>
+      </div>
+    </div>
+
+    <!-- MAIN APP TABS -->
+    <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800">
+      <button id="nav-btn-theater" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all bg-indigo-600 text-white shadow">
+        🎬 Interactive Lecture & Checkpoints
+      </button>
+      <button id="nav-btn-labs" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+        🧪 Hands-On Code Labs (9)
+      </button>
+      <button id="nav-btn-mock" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white flex items-center space-x-1.5">
+        <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+        <span>🎙️ 10-Min Mock Oral Exam</span>
+      </button>
+      <button id="nav-btn-cheatsheet" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+        📋 3-Beat Oral Formula & Notes
+      </button>
+    </div>
+
+    <!-- OVERALL METRICS & AUDIO TOGGLE -->
+    <div class="flex items-center space-x-3">
+
+      <button id="btn-open-backend-modal" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
+        <span id="backend-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+        <span id="backend-status-text">Backend: Setup</span>
+      </button>
+
+      <button id="btn-audio-toggle" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700">
+        <span id="audio-icon">🔊</span>
+        <span id="audio-label">Narrator: ON</span>
+      </button>
+      <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 px-3 py-1 rounded-lg text-xs">
+        <span class="text-slate-400">Score:</span>
+        <span id="header-score" class="font-bold text-cyan-400">0 pts</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: INTERACTIVE LECTURE THEATER (VIDEO) -->
+    <!-- ========================================== -->
+    <section id="view-theater" class="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+      <!-- SIDEBAR: TOPIC PICKER -->
+      <aside class="w-full md:w-80 bg-slate-900/60 border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto">
+        <div class="p-3 border-b border-slate-800 bg-slate-900/80">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Syllabus (9 Chapters)</h2>
+          <p class="text-[11px] text-slate-500">Pick a topic to watch the interactive lecture & checkpoint quizzes</p>
+        </div>
+        <div id="topic-list" class="divide-y divide-slate-800/60 flex-1 overflow-y-auto">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </aside>
+
+      <!-- STAGE: INTERACTIVE VIDEO & CHECKPOINT POPUP -->
+      <div class="flex-1 flex flex-col bg-slate-950 overflow-y-auto p-4 md:p-6 space-y-4">
+        <!-- TOP INFO BAR -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-800/80 gap-2">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span id="lecture-badge" class="px-2 py-0.5 text-[11px] font-bold rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TOPIC 1</span>
+              <h1 id="lecture-title" class="text-lg md:text-xl font-extrabold text-white">Images as Data (Represent, Inspect, & Transform)</h1>
+            </div>
+            <p id="lecture-subtitle" class="text-xs text-slate-400 mt-0.5">Tensors, color spaces, normalization mathematics, and spatial filtering kernels.</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400">Playback Speed:</span>
+            <select id="speed-select" class="bg-slate-800 border border-slate-700 text-xs rounded px-2 py-1 text-slate-200">
+              <option value="1">1.0x Normal</option>
+              <option value="1.25">1.25x Fast</option>
+              <option value="1.5">1.5x Rapid</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- VIDEO THEATER SCREEN (ANIMATED CANVAS & NARRATION) -->
+        <div class="relative bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl flex flex-col min-h-[380px]">
+          <!-- CANVAS VISUALIZATION STAGE -->
+          <div class="relative flex-1 bg-gradient-to-b from-slate-950 to-slate-900 flex items-center justify-center p-4 overflow-hidden">
+            <canvas id="video-canvas" width="680" height="300" class="max-w-full h-auto rounded-lg shadow-lg border border-slate-800/80 bg-slate-950"></canvas>
+            
+            <!-- OVERLAY: PROFESSOR / MENTOR AVATAR BUBBLE -->
+            <div class="absolute top-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center space-x-2 shadow-lg">
+              <div class="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold border border-cyan-500/40">
+                👨‍🏫
+              </div>
+              <div>
+                <div class="text-[10px] text-slate-400 uppercase font-semibold">Study Buddy AI</div>
+                <div id="narrator-status" class="text-[11px] font-medium text-cyan-300">Ready to present</div>
+              </div>
+            </div>
+
+            <!-- OVERLAY: CHECKPOINT BANNER (WHEN PAUSED) -->
+            <div id="checkpoint-active-banner" class="hidden absolute top-3 right-3 bg-rose-500/20 border border-rose-500 text-rose-300 text-xs px-3 py-1.5 rounded-xl font-bold flex items-center space-x-2 animate-bounce">
+              <span>🛑 CHECKPOINT PAUSED</span>
+            </div>
+          </div>
+
+          <!-- SYNCHRONIZED CAPTIONS / SCRIPT BAR -->
+          <div class="bg-slate-900/95 border-t border-slate-800 px-4 py-3 flex items-start space-x-3">
+            <span class="text-indigo-400 text-xs font-mono font-bold mt-0.5">SUBTITLES:</span>
+            <p id="lecture-captions" class="text-xs md:text-sm text-slate-200 leading-relaxed flex-1">
+              Welcome to Topic 1! Let's understand how computers perceive an image. To a machine, an image isn't colors or art—it's a raw 3D tensor of numbers.
+            </p>
+          </div>
+
+          <!-- TIMELINE SCRUBBER & CONTROLS -->
+          <div class="bg-slate-950 border-t border-slate-800/80 p-3 flex flex-col space-y-2">
+            <!-- SCRUBBER PROGRESS BAR -->
+            <div class="relative w-full flex items-center">
+              <input id="video-timeline" type="range" min="0" max="100" value="0" step="0.5" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer slider-thumb">
+              <!-- CHECKPOINT MARKER PINS -->
+              <div class="absolute inset-x-0 h-2 pointer-events-none flex justify-between px-1">
+                <span class="w-2.5 h-2.5 -top-0.5 rounded-full bg-amber-400 border border-slate-950 shadow" style="position: absolute; left: 35%;"></span>
+                <span class="w-2.5 h-2.5 -top-0.5 rounded-full bg-amber-400 border border-slate-950 shadow" style="position: absolute; left: 70%;"></span>
+              </div>
+            </div>
+
+            <!-- BUTTONS & TIMERS -->
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-3">
+                <button id="btn-video-play" class="w-8 h-8 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 flex items-center justify-center font-bold text-sm shadow">
+                  ▶
+                </button>
+                <button id="btn-video-restart" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px]">
+                  Restart
+                </button>
+                <span id="video-time-display" class="font-mono text-slate-400 text-[11px]">00:00 / 02:30</span>
+              </div>
+              <div class="flex items-center space-x-2 text-slate-400 text-[11px]">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
+                <span>Yellow dots = Oral Checkpoint Questions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHECKPOINT QUESTION INTERACTION CARD (APPEARS WHEN HIT) -->
+        <div id="checkpoint-card" class="bg-slate-900 border-2 border-indigo-500/50 rounded-2xl p-4 md:p-5 shadow-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold">
+                🎯 ORAL CHECKPOINT QUIZ
+              </span>
+              <span id="checkpoint-id-label" class="text-xs text-slate-400">Checkpoint 1 of 2</span>
+            </div>
+            <span class="text-xs text-slate-400">Test your oral explanation</span>
+          </div>
+
+          <h3 id="checkpoint-question" class="text-sm md:text-base font-bold text-white">
+            The lecturer asks: "Why do we normalize image pixels using the ImageNet mean and standard deviation before feeding them into a pretrained CNN?"
+          </h3>
+
+          <div class="space-y-2">
+            <label for="checkpoint-input" class="block text-xs font-medium text-slate-300">
+              Type your spoken answer (speak like you're in the 10-minute oral exam):
+            </label>
+            <textarea id="checkpoint-input" rows="3" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400" placeholder="State the 3 beats: 1. Core reason (covariate shift), 2. Mechanism (gradient flow/loss landscape), 3. Consequence of not doing it..."></textarea>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <div class="flex space-x-2">
+              <button id="btn-submit-checkpoint" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold rounded-xl text-xs md:text-sm shadow-lg shadow-indigo-500/20 transition-all">
+                Submit Answer for Oral Evaluation
+              </button>
+              <button id="btn-hint-checkpoint" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-xs">
+                💡 Reveal Keywords / Hint
+              </button>
+            </div>
+            <button id="btn-resume-video" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl text-xs">
+              Skip / Continue Video ⏩
+            </button>
+          </div>
+
+          <!-- HINT BOX -->
+          <div id="checkpoint-hint-box" class="hidden bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs text-amber-300/90">
+            <strong>Key phrases the professor wants to hear:</strong>
+            <p id="checkpoint-hint-text" class="mt-1 text-slate-300">"Covariate shift", "matching training distribution", "loss landscape curvature", "gradient descent stability".</p>
+          </div>
+
+          <!-- EVALUATION RESULT BOX -->
+          <div id="checkpoint-feedback-box" class="hidden bg-slate-950 p-4 rounded-xl border border-emerald-500/40 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <span id="checkpoint-grade-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  Grade: Excellent (92%)
+                </span>
+                <span id="checkpoint-score-add" class="text-xs text-cyan-400 font-bold">+50 Points</span>
+              </div>
+              <span class="text-xs text-slate-400">Oral Rubric Feedback</span>
+            </div>
+            <p id="checkpoint-eval-summary" class="text-xs text-slate-200">
+              Great articulation! You hit the core intuition and used professional terminology.
+            </p>
+            <div class="p-3 bg-slate-900 rounded-lg border border-slate-800">
+              <div class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-1">
+                ⭐ The 30-Second Professor-Grade Oral Answer:
+              </div>
+              <p id="checkpoint-ideal-answer" class="text-xs text-slate-300 italic leading-relaxed">
+                "We normalize images using ImageNet statistics to match the exact input distribution the network's weights were calibrated to during pretraining. If we feed unnormalized pixels [0, 255], it causes an internal covariate shift: the first-layer activations saturate, gradients destabilize, and the loss landscape develops steep cliffs, severely degrading inference accuracy."
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- COOL & RECENT RESEARCH FACT CARD -->
+        <div class="bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-800/40 rounded-2xl p-4 flex items-start space-x-3">
+          <div class="text-2xl mt-0.5">🚀</div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="text-xs font-bold text-purple-400 uppercase tracking-wider">Cool & Recent Fact to Impress Your Lecturer</span>
+              <span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.2 rounded-full font-medium">Extra Oral Credit</span>
+            </div>
+            <h4 id="cool-fact-title" class="text-sm font-bold text-white mt-0.5">Neuromorphic Event Cameras (Bio-Inspired Retinas)</h4>
+            <p id="cool-fact-desc" class="text-xs text-slate-300 mt-1 leading-relaxed">
+              Prophesee event sensors completely discard traditional frame rates (like 30 or 60 fps). Instead, each pixel independently reports microsecond changes in log-luminance with zero motion blur and over 140 dB dynamic range. Mentioning this when the professor asks about images as data shows immense breadth!
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: HANDS-ON CODE & SIMULATION LABS    -->
+    <!-- ========================================== -->
+    <section id="view-labs" class="hidden flex-1 flex flex-col md:flex-row h-full overflow-hidden">
+      <!-- LAB SELECTION SIDEBAR -->
+      <aside class="w-full md:w-72 bg-slate-900/60 border-r border-slate-800 flex flex-col shrink-0 overflow-y-auto">
+        <div class="p-3 border-b border-slate-800 bg-slate-900/80">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Interactive Labs</h2>
+          <p class="text-[11px] text-slate-500">Live simulations & PyTorch arithmetic</p>
+        </div>
+        <div id="lab-list" class="divide-y divide-slate-800/60 flex-1 overflow-y-auto">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </aside>
+
+      <!-- LAB WORKSPACE -->
+      <div id="lab-workspace" class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-950 space-y-6">
+        <!-- LAB WORKSPACE INJECTED DYNAMICALLY -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 3: 10-MINUTE MOCK ORAL EXAM SIMULATOR -->
+    <!-- ========================================== -->
+    <section id="view-mock" class="hidden flex-1 flex flex-col h-full overflow-y-auto p-4 md:p-8 bg-slate-950 space-y-6">
+      <div class="max-w-4xl mx-auto w-full space-y-6">
+        <!-- HEADER & TIMER CARD -->
+        <div class="bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div>
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold mb-2">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              <span>1-on-1 Oral Examination Simulator</span>
+            </div>
+            <h2 class="text-2xl font-black text-white">10-Minute Rapid-Fire Oral Defense</h2>
+            <p class="text-xs md:text-sm text-slate-400 mt-1 max-w-xl">
+              Tomorrow you have 10 minutes one-on-one with your lecturer. In this mode, the virtual examiner asks high-yield questions, gives real-time audio prompts, and grades your answers on clarity, technical terminology, and trade-offs.
+            </p>
+          </div>
+
+          <!-- COUNTDOWN TIMER -->
+          <div class="flex flex-col items-center justify-center bg-slate-950 border border-slate-800 rounded-2xl p-4 px-6 shrink-0 shadow-inner">
+            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Remaining Time</span>
+            <div id="exam-timer" class="text-3xl md:text-4xl font-mono font-extrabold text-rose-400 mt-0.5">10:00</div>
+            <div class="flex items-center space-x-2 mt-3">
+              <button id="btn-start-exam" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-lg shadow">
+                Start Exam
+              </button>
+              <button id="btn-reset-exam" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg">
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- EXAMINER CONVERSATION STAGE -->
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <!-- EXAMINER PROMPT -->
+          <div class="flex items-start space-x-4">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-600 flex items-center justify-center text-xl shrink-0 shadow-lg">
+              👨‍🏫
+            </div>
+            <div class="flex-1 space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-400">Professor (Examiner)</span>
+                <span id="exam-question-num" class="text-xs text-slate-500 font-mono">Question 1 of 6</span>
+              </div>
+              <p id="exam-current-prompt" class="text-sm md:text-base font-semibold text-slate-100 leading-snug">
+                "Welcome! Let's get right into it. Explain to me the fundamental difference between image classification, object detection, and semantic segmentation in under 30 seconds."
+              </p>
+              <button id="btn-read-question-aloud" class="text-xs text-cyan-400 hover:text-cyan-300 font-medium inline-flex items-center space-x-1 pt-1">
+                <span>🔊 Hear question aloud</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- STUDENT RESPONSE AREA -->
+          <div class="pt-4 border-t border-slate-800/80 space-y-3">
+            <div class="flex items-center justify-between">
+              <label for="exam-response-input" class="text-xs font-bold text-slate-300">Your Oral Defense Answer:</label>
+              <span class="text-[11px] text-slate-500">Tip: Keep it punchy! Hit the 3 beats.</span>
+            </div>
+            <textarea id="exam-response-input" rows="4" class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-4 text-xs md:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400 transition-all" placeholder="Classification answers 'What is in the whole image?' with one label. Object detection answers 'What and Where?' by predicting bounding boxes..."></textarea>
+            
+            <div class="flex items-center justify-between">
+              <button id="btn-submit-exam-answer" class="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-bold rounded-xl text-xs md:text-sm shadow-lg shadow-rose-600/20">
+                Submit Oral Answer
+              </button>
+              <button id="btn-next-exam-question" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium">
+                Next Question ➡️
+              </button>
+            </div>
+          </div>
+
+          <!-- INSTANT ORAL RUBRIC EVALUATION -->
+          <div id="exam-eval-card" class="hidden bg-slate-950 border border-cyan-500/30 rounded-2xl p-5 space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div class="flex items-center space-x-2">
+                <span class="text-cyan-400 font-bold text-sm">Examiner Rubric Breakdown</span>
+                <span id="exam-rubric-score" class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs font-extrabold">95 / 100</span>
+              </div>
+              <span class="text-xs text-slate-400">Feedback</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <span class="text-slate-400 block font-semibold mb-1">1. Clarity & Structure</span>
+                <span id="rubric-clarity" class="text-emerald-400 font-bold">Strong 3-beat rhythm</span>
+              </div>
+              <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <span class="text-slate-400 block font-semibold mb-1">2. Technical Terminology</span>
+                <span id="rubric-terms" class="text-cyan-400 font-bold">Used: Bounding Box, Pixel-level, Global Label</span>
+              </div>
+              <div class="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                <span class="text-slate-400 block font-semibold mb-1">3. Trade-offs Mentioned</span>
+                <span id="rubric-tradeoff" class="text-purple-400 font-bold">Latency vs granular localization</span>
+              </div>
+            </div>
+
+            <div class="p-3.5 bg-slate-900/80 rounded-xl border border-slate-800">
+              <span class="text-[11px] font-bold text-amber-400 uppercase tracking-wider block mb-1">How the Professor would summarize it:</span>
+              <p id="exam-model-answer" class="text-xs text-slate-300 italic leading-relaxed">
+                "Classification outputs a single categorical label for the entire image with no spatial coordinates. Detection outputs discrete bounding boxes with class labels and confidence scores to localize discrete objects. Semantic segmentation performs dense pixel-wise classification, assigning every individual pixel to a semantic category without distinguishing separate object instances."
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 4: 3-BEAT ORAL FORMULA & CHEAT SHEET  -->
+    <!-- ========================================== -->
+    <section id="view-cheatsheet" class="hidden flex-1 overflow-y-auto p-4 md:p-8 bg-slate-950 space-y-6">
+      <div class="max-w-4xl mx-auto space-y-6">
+        <!-- HERO STRATEGY -->
+        <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 border border-indigo-800/40 rounded-3xl p-6 shadow-xl space-y-3">
+          <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-xs font-bold">
+            🏆 The Oral Exam Secret
+          </div>
+          <h2 class="text-2xl font-black text-white">The 3-Beat Answer Formula (Under 45 Seconds)</h2>
+          <p class="text-xs md:text-sm text-slate-300 leading-relaxed">
+            In a 10-minute oral exam, the professor wants to see if you actually understand the intuition or if you just memorized buzzwords. If you talk for 3 minutes without breathing, they'll interrupt you. Master the <strong>3 Beats</strong>:
+          </p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
+              <span class="text-xs font-bold text-cyan-400">Beat 1: The Core Definition (10s)</span>
+              <p class="text-xs text-slate-300 mt-1">One crisp declarative sentence defining the concept with exact keywords.</p>
+            </div>
+            <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
+              <span class="text-xs font-bold text-indigo-400">Beat 2: The Mechanism (20s)</span>
+              <p class="text-xs text-slate-300 mt-1">How it actually works mechanically (parameter sharing, gradients, matrix operations).</p>
+            </div>
+            <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
+              <span class="text-xs font-bold text-purple-400">Beat 3: Trade-off / Edge Case (15s)</span>
+              <p class="text-xs text-slate-300 mt-1">When does it fail? What is the computational cost or modern alternative?</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9 CHAPTER CHEAT CARDS -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+            <span>📚 Rapid-Fire Oral Revision for All 9 Topics</span>
+          </h3>
+
+          <div id="cheatsheet-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- NOTIFICATION TOAST -->
+  <div id="toast" class="fixed bottom-4 right-4 bg-slate-900 border border-slate-700 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-medium transform translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center space-x-2">
+    <span id="toast-icon">✨</span>
+    <span id="toast-msg">Notification</span>
+  </div>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    // --- TOPIC & CURRICULUM DATA ---
+    const SYLLABUS = [
+      {
+        id: 0,
+        title: "Images as Data",
+        subtitle: "Represent, inspect, & transform image inputs",
+        badge: "Module 1",
+        duration: "02:30",
+        checkpointTime: 40,
+        captions: [
+          { time: 0, text: "An image is not art to a computer—it is a 3D numerical tensor of shape (H, W, C). Each pixel is an integer from 0 to 255." },
+          { time: 15, text: "In RGB, channels are heavily correlated. For tasks invariant to shadows, we convert to HSV to separate chromaticity from brightness." },
+          { time: 30, text: "Before training, we normalize images to zero mean and unit variance so gradient descent doesn't oscillate wildly in the loss landscape." },
+          { time: 40, text: "[CHECKPOINT 1]: Professor asks: Why subtract ImageNet mean and divide by std?" },
+          { time: 65, text: "Spatial convolution with 3x3 kernels like Sobel detects vertical and horizontal edges by calculating discrete intensity gradients." },
+          { time: 85, text: "Data augmentation (random crops, flips, color jitter) acts as regularizer, forcing invariance to camera angles." },
+          { time: 100, text: "And remember event cameras! Instead of frames, each pixel independently reports log-luminance changes with microsecond latency." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Why do we normalize image pixels using the ImageNet mean and standard deviation before feeding them into a pretrained CNN?'",
+          hint: "Keywords: matching training distribution, covariate shift, loss landscape curvature, gradient stability.",
+          keywords: ["distribution", "covariate", "imagenet", "mean", "gradient", "weights", "shift", "scale", "landscape"],
+          idealAnswer: "We normalize images using ImageNet statistics to match the exact input distribution the network's weights were calibrated to during pretraining. Unnormalized pixels cause internal covariate shift, saturating early layer activations and destabilizing gradient descent."
+        },
+        coolFact: {
+          title: "Neuromorphic Event Cameras (Bio-Inspired Retinas)",
+          desc: "Event cameras (like Prophesee sensors) don't have frame rates (no 30 or 60 fps). Instead, each pixel independently fires an asynchronous event in microseconds whenever log-luminance changes, giving zero motion blur and >140 dB dynamic range!"
+        }
+      },
+      {
+        id: 1,
+        title: "Convolutional Neural Networks (CNNs)",
+        subtitle: "Understand convolution, pooling, & feature maps",
+        badge: "Module 2",
+        duration: "03:00",
+        checkpointTime: 45,
+        captions: [
+          { time: 0, text: "Why not fully connected networks for images? Flattening a 224x224x3 image produces 150,000 inputs—millions of weights that cause instant overfitting!" },
+          { time: 15, text: "CNNs solve this through two inductive biases: Local Connectivity and Parameter Sharing. The same small 3x3 kernel slides across the entire image." },
+          { time: 30, text: "This yields Translation Equivariance: if an object moves across the frame, its feature map activation moves by the exact same shift." },
+          { time: 45, text: "[CHECKPOINT 1]: Professor asks: Does Max Pooling have learnable parameters, and why do we use it?" },
+          { time: 65, text: "Max pooling downsamples spatial dimensions with zero learnable parameters, reducing memory and imparting local translation invariance." },
+          { time: 85, text: "As we go deeper, feature maps evolve: shallow layers detect edges and textures; deep layers detect semantic object parts (wheels, dog faces)." },
+          { time: 105, text: "Remember the output size formula: Output = floor((Input - Kernel + 2*Padding) / Stride) + 1. Memorize this formula!" }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Does Max Pooling have any learnable parameters? And what is the fundamental difference between Translation Equivariance and Translation Invariance?'",
+          hint: "Keywords: zero parameters, fixed operation, convolution is equivariant, pooling provides invariance to small shifts.",
+          keywords: ["zero", "no", "parameter", "equivariant", "invariant", "shift", "pooling", "convolution"],
+          idealAnswer: "Max pooling has zero learnable parameters; it is a deterministic operation selecting the maximum value. Convolution is translation equivariant (shifting input shifts the output feature map identically), while pooling provides local translation invariance (small shifts inside the pooling window do not change the output)."
+        },
+        coolFact: {
+          title: "ConvNeXt (Modernizing CNNs to Beat Transformers)",
+          desc: "In 2022, researchers re-engineered pure CNNs using 7x7 depthwise convolutions, LayerNorm, and GELU activations. ConvNeXt proved that CNNs can match modern Vision Transformers without any self-attention mechanism!"
+        }
+      },
+      {
+        id: 2,
+        title: "Training & Evaluation",
+        subtitle: "Train, validate, & diagnose classifier behaviour",
+        badge: "Module 3",
+        duration: "02:45",
+        checkpointTime: 50,
+        captions: [
+          { time: 0, text: "Training a vision model is a continuous optimization loop: forward pass, compute cross-entropy loss, backpropagate gradients, update weights via AdamW." },
+          { time: 20, text: "Always split your data into Train, Validation, and Test sets. Be vigilant about data leakage (e.g., patient images from the same subject in both train and test)." },
+          { time: 35, text: "To diagnose: if training loss plummets to near-zero while validation loss curves upward, your model has high variance—it is overfitting!" },
+          { time: 50, text: "[CHECKPOINT 1]: Professor asks: Why does Batch Normalization behave differently during training vs evaluation?" },
+          { time: 75, text: "Combat overfitting using data augmentation, dropout, weight decay (L2 penalty), and early stopping." },
+          { time: 95, text: "Never evaluate imbalanced datasets with raw accuracy! A 99% accuracy on a cancer dataset where 99% of patients are healthy is completely useless." },
+          { time: 110, text: "Use Precision, Recall, and the harmonic mean F1-Score, or Precision-Recall AUC." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Why does Batch Normalization behave fundamentally differently during training versus evaluation mode?'",
+          hint: "Keywords: mini-batch statistics vs running mean/variance, deterministic inference, batch size 1.",
+          keywords: ["batch", "running", "mean", "variance", "evaluation", "train", "deterministic", "moving average"],
+          idealAnswer: "During training, BatchNorm normalizes activations using the mean and variance of the current mini-batch. In evaluation mode, inputs may arrive one at a time (batch size 1), so it uses fixed exponential running averages of mean and variance accumulated during training to guarantee deterministic outputs."
+        },
+        coolFact: {
+          title: "Mixup & CutMix Soft Labeling",
+          desc: "Modern vision training doesn't use rigid 0 or 1 labels. CutMix cuts patches from two images and blends their labels (e.g. 0.7 cat, 0.3 dog), teaching networks to be smooth and preventing overconfident misclassifications!"
+        }
+      },
+      {
+        id: 3,
+        title: "Transfer Learning",
+        subtitle: "Adapt pretrained models to a new problem",
+        badge: "Module 4",
+        duration: "02:40",
+        checkpointTime: 45,
+        captions: [
+          { time: 0, text: "Training a deep vision network from scratch requires millions of images. Transfer learning lets us reuse representations learned on ImageNet." },
+          { time: 20, text: "Early CNN layers learn universal visual primitives like edges and color gradients. Only the final layers learn dataset-specific semantics." },
+          { time: 35, text: "If your target dataset is small and similar to ImageNet, freeze the backbone (requires_grad = False) and train only a new linear classifier head." },
+          { time: 45, text: "[CHECKPOINT 1]: Professor asks: What is catastrophic forgetting, and when should you fine-tune the entire network?" },
+          { time: 70, text: "Catastrophic forgetting occurs when high learning rates overwrite the pretrained feature extractor with noisy gradients from the new domain." },
+          { time: 90, text: "Use discriminative learning rates: tiny learning rates on early layers (1e-6), moderate on middle layers, and higher on the classification head." },
+          { time: 110, text: "Self-supervised foundation models like DINOv2 learn visual representations so robust they work zero-shot across multiple vision tasks." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'What is catastrophic forgetting during fine-tuning, and under what dataset conditions would you freeze the backbone versus fine-tune the entire network?'",
+          hint: "Keywords: destroying pretrained weights, small dataset = freeze backbone, large dataset = fine-tune with small learning rate.",
+          keywords: ["catastrophic", "forgetting", "freeze", "backbone", "small", "large", "learning rate", "overfitting"],
+          idealAnswer: "Catastrophic forgetting occurs when training with high learning rates overwrites pretrained weights, erasing previously learned visual primitives. We freeze the backbone when the target dataset is small (to prevent overfitting), and fine-tune all layers with a small learning rate when we have a large target dataset."
+        },
+        coolFact: {
+          title: "DINOv2 Self-Supervised Vision",
+          desc: "Meta's DINOv2 was trained on 142 million unlabeled images. It discovers semantic segmentation, object parts, and 3D depth maps completely unsupervised without a single human annotation!"
+        }
+      },
+      {
+        id: 4,
+        title: "Object Detection",
+        subtitle: "Find object classes & location",
+        badge: "Module 5",
+        duration: "03:15",
+        checkpointTime: 55,
+        captions: [
+          { time: 0, text: "Object detection tackles two tasks simultaneously: classification (What is it?) and localization (Where is it? via bounding box coordinates x, y, w, h)." },
+          { time: 20, text: "Two-stage detectors like Faster R-CNN use a Region Proposal Network to suggest candidates, then classify them. They are accurate but slower." },
+          { time: 40, text: "One-stage detectors like YOLO divide the image into an S x S grid. Each cell directly predicts bounding boxes, confidence, and class probabilities in a single forward pass." },
+          { time: 55, text: "[CHECKPOINT 1]: Professor asks: Explain Non-Maximum Suppression (NMS) step-by-step and define IoU." },
+          { time: 80, text: "IoU is Area of Overlap divided by Area of Union. If IoU >= 0.5, it is typically deemed a True Positive." },
+          { time: 100, text: "NMS sorts candidate boxes by confidence, picks the top box, and purges all overlapping boxes having an IoU greater than the threshold." },
+          { time: 120, text: "Focal loss solves the extreme imbalance in one-stage detectors where 99.9% of candidate anchors contain background." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Walk me through how Non-Maximum Suppression (NMS) works step-by-step, and explain why it is necessary in object detection.'",
+          hint: "Keywords: multiple duplicate boxes, sort by confidence, greedily keep top box, calculate IoU, suppress boxes above threshold.",
+          keywords: ["confidence", "sort", "iou", "suppress", "overlap", "threshold", "duplicate", "highest"],
+          idealAnswer: "Detectors predict multiple overlapping boxes for a single object. NMS removes duplicates: 1. Discard boxes below confidence threshold. 2. Greedily select the box with highest confidence. 3. Calculate IoU between it and remaining boxes. 4. Suppress all boxes with IoU above threshold (e.g. 0.45). 5. Repeat until no boxes remain."
+        },
+        coolFact: {
+          title: "YOLOv10 Eliminates NMS Entirely",
+          desc: "Released in 2024, YOLOv10 uses dual-label assignments during training (one-to-many for learning, one-to-one for inference). This completely eliminates the need for NMS post-processing, dropping inference latency to sub-millisecond levels!"
+        }
+      },
+      {
+        id: 5,
+        title: "Segmentation",
+        subtitle: "Predict pixel-level regions",
+        badge: "Module 6",
+        duration: "02:50",
+        checkpointTime: 50,
+        captions: [
+          { time: 0, text: "Segmentation is dense prediction: assigning a class label to every individual pixel in the image." },
+          { time: 15, text: "Semantic segmentation labels classes (all sheep are blue). Instance segmentation distinguishes individuals (Sheep 1 is blue, Sheep 2 is red)." },
+          { time: 30, text: "Panoptic segmentation unifies both: countable 'things' (people, cars) and continuous background 'stuff' (sky, road)." },
+          { time: 50, text: "[CHECKPOINT 1]: Professor asks: Why are Skip Connections essential in U-Net, and what happens if you delete them?" },
+          { time: 75, text: "The encoder contracts the image to capture high-level semantic context, but pooling destroys fine spatial edge coordinates." },
+          { time: 95, text: "Skip connections copy high-resolution shallow feature maps directly across to the decoder, concatenating them with upsampled deep features." },
+          { time: 115, text: "For evaluation, use Dice Similarity Coefficient (2*Intersection / (A + B)) and Mean IoU (mIoU)." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Why are skip connections indispensable in U-Net? What happens to the output mask if you remove them?'",
+          hint: "Keywords: spatial localization lost in pooling, encoder high-resolution features concatenated to decoder, blurry boundaries without them.",
+          keywords: ["skip", "pooling", "spatial", "resolution", "boundary", "localization", "decoder", "encoder", "concatenate"],
+          idealAnswer: "As an image passes through the encoder, pooling layers discard precise spatial boundary coordinates in favor of high-level semantic context. Skip connections pass high-resolution spatial feature maps directly from the encoder to the decoder. Without them, reconstructed masks have blurry, inaccurate boundaries."
+        },
+        coolFact: {
+          title: "SAM 2 (Segment Anything Model 2)",
+          desc: "Meta's SAM 2 extends zero-shot segmentation to real-time video! By using a streaming memory bank and memory attention, clicking a single point on an object in frame 1 tracks its pixel-perfect mask across hundreds of video frames with zero drift."
+        }
+      },
+      {
+        id: 6,
+        title: "ViTs + Multimodal Vision",
+        subtitle: "Use image-text & transformer-based vision",
+        badge: "Module 7",
+        duration: "03:10",
+        checkpointTime: 50,
+        captions: [
+          { time: 0, text: "Vision Transformers (ViT) adapt NLP transformers to images by chopping a 224x224 image into a grid of 16x16 non-overlapping patches." },
+          { time: 20, text: "Each flattened patch is linearly projected into a D-dimensional token embedding. We prepend a learnable [CLS] token and add 1D positional embeddings." },
+          { time: 35, text: "Self-attention computes attention weights between all pairs of patches: Attention = softmax(Q * K^T / sqrt(d_k)) * V." },
+          { time: 50, text: "[CHECKPOINT 1]: Professor asks: Why do ViTs require far more training data than CNNs to perform well?" },
+          { time: 75, text: "CNNs have strong inductive bias: locality and translation equivariance. ViTs have weak inductive bias—they must learn 2D spatial relationships from scratch!" },
+          { time: 95, text: "Multimodal models like CLIP use dual encoders (Image Encoder + Text Encoder) trained with contrastive loss across 400M web image-text pairs." },
+          { time: 115, text: "CLIP performs zero-shot classification by computing cosine similarity between an image vector and text prompts like 'a photo of a dog'." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Why do Vision Transformers require significantly more training data than CNNs to reach peak performance? And how does CLIP perform zero-shot classification?'",
+          hint: "Keywords: inductive bias, locality, translation equivariance, CLIP dual encoders, cosine similarity of text and image embeddings.",
+          keywords: ["inductive bias", "locality", "data", "clip", "cosine", "text", "embedding", "zero-shot"],
+          idealAnswer: "CNNs have hardcoded inductive biases: local connectivity and translation equivariance. ViTs lack spatial bias—they must learn that nearby patches belong together from raw attention data, requiring massive pretraining datasets. CLIP performs zero-shot classification by encoding candidate class text prompts and calculating cosine similarity with the image embedding."
+        },
+        coolFact: {
+          title: "Vision-Language-Action Models (Google RT-2)",
+          desc: "Robotics models like RT-2 treat robotic motor actions as language tokens! A robot arm sees a camera frame, takes a prompt like 'pick up the extinct animal', and the vision-language model generates robotic joint coordinates directly."
+        }
+      },
+      {
+        id: 7,
+        title: "Video + Tracking",
+        subtitle: "Connect detections across time",
+        badge: "Module 8",
+        duration: "02:50",
+        checkpointTime: 45,
+        captions: [
+          { time: 0, text: "Video introduces the temporal dimension: a sequence of 2D frames (T, H, W, C) characterized by high spatial-temporal redundancy." },
+          { time: 20, text: "The dominant paradigm is Tracking-by-Detection: run an object detector on each frame, then link detections across time into continuous tracklets." },
+          { time: 35, text: "SORT uses a Kalman Filter to predict where an object will move in the next frame based on a constant velocity model." },
+          { time: 45, text: "[CHECKPOINT 1]: Professor asks: What is the role of the Hungarian Algorithm in SORT, and why does DeepSORT add a Re-ID network?" },
+          { time: 70, text: "The Hungarian algorithm solves the bipartite matching problem: assigning predicted Kalman positions to new detections based on IoU distance." },
+          { time: 90, text: "Vanilla SORT fails during occlusion because IoU drops to zero, causing ID switching. DeepSORT extracts deep visual appearance embeddings to re-identify objects." },
+          { time: 110, text: "For continuous motion estimation between frames without bounding boxes, we compute dense Optical Flow vectors." }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'Explain the roles of the Kalman Filter and the Hungarian Algorithm in SORT. Why was DeepSORT developed?'",
+          hint: "Keywords: Kalman predicts position/velocity, Hungarian solves optimal bipartite matching, DeepSORT adds Re-ID appearance features for occlusions.",
+          keywords: ["kalman", "hungarian", "predict", "matching", "deepsort", "re-id", "occlusion", "appearance", "id switch"],
+          idealAnswer: "In SORT, the Kalman Filter predicts the future spatial position and velocity of each track, while the Hungarian Algorithm computes the optimal one-to-one assignment between Kalman predictions and new detections using IoU distance. DeepSORT was developed because SORT fails during occlusions; DeepSORT adds a deep Re-ID appearance embedding to maintain consistent IDs."
+        },
+        coolFact: {
+          title: "Optical Flow in Neuromorphic Driving",
+          desc: "Autonomous vehicles use RAFT (Recurrent All-Pairs Field Transforms) to compute optical flow at pixel resolution, detecting micro-movements of pedestrians before any traditional bounding box detector can even register an object!"
+        }
+      },
+      {
+        id: 8,
+        title: "Deployment & Responsible Vision",
+        subtitle: "Package, benchmark, & explain limitations",
+        badge: "Module 9",
+        duration: "02:55",
+        checkpointTime: 50,
+        captions: [
+          { time: 0, text: "A computer vision model in a Jupyter Notebook is useless until deployed to production hardware (edge cameras, mobile chips, cloud servers)." },
+          { time: 15, text: "Optimization techniques include Pruning (zeroing unneeded weights) and Quantization (converting FP32 weights to INT8, cutting memory 4x with minimal accuracy loss)." },
+          { time: 35, text: "Export graphs to dedicated runtimes: ONNX Runtime, TensorRT (NVIDIA GPUs), OpenVINO (Intel), or TFLite (mobile/microcontrollers)." },
+          { time: 50, text: "[CHECKPOINT 1]: Professor asks: How does Grad-CAM explain what a CNN has learned, and what is demographic disparity bias?" },
+          { time: 75, text: "Grad-CAM flows gradients of the target class back to the final convolutional feature maps, global-average-pools them, and computes a heatmap of influential image regions." },
+          { time: 95, text: "Responsible AI is critical: commercial face detectors historically suffered 30%+ error rates on darker-skinned individuals due to dataset bias." },
+          { time: 115, text: "Always audit models using disaggregated sub-group metrics, and guard against adversarial attacks like FGSM noise!" }
+        ],
+        checkpoint: {
+          question: "The lecturer asks: 'How does Grad-CAM produce an interpretable visual explanation of a CNN prediction? And how do you audit a vision model for demographic bias?'",
+          hint: "Keywords: gradients of class score with respect to final conv layer, weighted activation map, disaggregated subgroup evaluation.",
+          keywords: ["grad-cam", "gradient", "feature map", "heatmap", "demographic", "bias", "subgroup", "audit", "dataset"],
+          idealAnswer: "Grad-CAM computes the gradient of the predicted class score with respect to the final convolutional feature maps, weights each channel by its pooled gradient importance, and applies a ReLU to create a visual heatmap showing which pixels drove the decision. Auditing for bias requires evaluating disaggregated accuracy metrics across demographic subgroups rather than relying on aggregate validation scores."
+        },
+        coolFact: {
+          title: "Adversarial Physical Patches",
+          desc: "A small patterned sticker placed on a stop sign can cause an autonomous vehicle's CNN to classify it as a 45 MPH speed limit sign with 99% confidence! Studying adversarial robustness is now a major automotive CV requirement."
+        }
+      }
+    ];
+
+    // --- APP STATE ---
+    let currentTopicIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+    let currentTime = 0;
+    let playbackSpeed = 1;
+    let speechEnabled = true;
+    let userScore = 0;
+    let checkpointSolved = {};
+
+    // --- MOCK EXAM STATE ---
+    const EXAM_QUESTIONS = [
+      {
+        prompt: "Welcome to your oral exam. Let's start with foundational concepts: Explain to me the fundamental difference between image classification, object detection, and semantic segmentation in under 30 seconds.",
+        keywords: ["classification", "detection", "segmentation", "bounding box", "pixel", "label", "instance"],
+        idealAnswer: "Classification outputs a single categorical label for the entire image with no spatial coordinates. Detection outputs discrete bounding boxes with class labels and confidence scores to localize discrete objects. Semantic segmentation performs dense pixel-wise classification, assigning every individual pixel to a semantic category without distinguishing separate object instances."
+      },
+      {
+        prompt: "Why do Convolutional Neural Networks drastically outperform Fully Connected networks on image tasks? Name the two primary inductive biases.",
+        keywords: ["parameter sharing", "local connectivity", "weight sharing", "translation equivariance", "overfitting"],
+        idealAnswer: "CNNs exploit two inductive biases: Local Connectivity (neurons connect only to small receptive fields) and Parameter Sharing (the same filter slides across the image). This guarantees translation equivariance and drastically reduces parameter counts compared to fully connected MLPs, which flatten spatial topology and overfit instantly."
+      },
+      {
+        prompt: "Suppose you have a small target dataset of 500 medical X-ray images. How would you apply transfer learning from an ImageNet-pretrained ResNet-50? Explain your layer-freezing strategy and learning rate choices.",
+        keywords: ["freeze backbone", "linear probe", "classifier head", "overfitting", "small learning rate", "catastrophic forgetting"],
+        idealAnswer: "With only 500 images, training the whole network will cause severe overfitting. I would freeze the entire ResNet backbone (requires_grad=False) and replace the final fully connected layer with a new classification head. If fine-tuning later, I would unfreeze only the top block using a very small learning rate (e.g. 1e-5) to avoid catastrophic forgetting."
+      },
+      {
+        prompt: "In object detection, how does the Non-Maximum Suppression (NMS) algorithm eliminate redundant bounding boxes? What metric does it rely on?",
+        keywords: ["iou", "intersection over union", "confidence", "suppress", "threshold", "greedy", "sort"],
+        idealAnswer: "NMS relies on Intersection over Union (IoU) and confidence scores. It sorts all predicted boxes by confidence, selects the highest-scoring box, and computes IoU with all overlapping boxes of that class. Any box with an IoU exceeding a threshold (e.g. 0.45) is suppressed. This process repeats greedily until only distinct object boxes remain."
+      },
+      {
+        prompt: "Vision Transformers (ViT) have revolutionized modern computer vision. Why do ViTs require vastly larger pretraining datasets than CNNs to achieve competitive performance?",
+        keywords: ["inductive bias", "locality", "translation equivariance", "global attention", "learn spatial"],
+        idealAnswer: "CNNs possess hardcoded inductive biases: local pixel connectivity and translation equivariance. In contrast, ViTs treat patches as arbitrary sequence tokens with self-attention and weak inductive bias; they have no inherent knowledge that adjacent patches are related. Therefore, ViTs require massive pretraining data to learn spatial geometry from scratch."
+      },
+      {
+        prompt: "In multi-object tracking, why is a Kalman filter coupled with the Hungarian algorithm in SORT? What critical limitation led to the creation of DeepSORT?",
+        keywords: ["kalman", "velocity", "hungarian", "bipartite matching", "deepsort", "re-id", "occlusion", "appearance"],
+        idealAnswer: "In SORT, the Kalman filter models target velocity and predicts the object's spatial position in the next frame. The Hungarian algorithm solves the optimal bipartite matching between predicted positions and new detections using IoU distance. DeepSORT was developed because SORT fails during occlusions when IoU drops to zero; DeepSORT adds a deep Re-ID appearance embedding to re-identify targets across occlusions."
+      }
+    ];
+
+    let currentExamIndex = 0;
+    let examTimeRemaining = 600; // 10 minutes
+    let examTimerInterval = null;
+
+    // --- DOM REFERENCES ---
+    const viewTheater = document.getElementById('view-theater');
+    const viewLabs = document.getElementById('view-labs');
+    const viewMock = document.getElementById('view-mock');
+    const viewCheatsheet = document.getElementById('view-cheatsheet');
+
+    const navBtnTheater = document.getElementById('nav-btn-theater');
+    const navBtnLabs = document.getElementById('nav-btn-labs');
+    const navBtnMock = document.getElementById('nav-btn-mock');
+    const navBtnCheatsheet = document.getElementById('nav-btn-cheatsheet');
+
+    const topicListContainer = document.getElementById('topic-list');
+    const lectureBadge = document.getElementById('lecture-badge');
+    const lectureTitle = document.getElementById('lecture-title');
+    const lectureSubtitle = document.getElementById('lecture-subtitle');
+    const lectureCaptions = document.getElementById('lecture-captions');
+    const videoCanvas = document.getElementById('video-canvas');
+    const ctx = videoCanvas.getContext('2d');
+    const videoTimeline = document.getElementById('video-timeline');
+    const btnVideoPlay = document.getElementById('btn-video-play');
+    const btnVideoRestart = document.getElementById('btn-video-restart');
+    const videoTimeDisplay = document.getElementById('video-time-display');
+    const speedSelect = document.getElementById('speed-select');
+    const checkpointCard = document.getElementById('checkpoint-card');
+    const checkpointQuestion = document.getElementById('checkpoint-question');
+    const checkpointInput = document.getElementById('checkpoint-input');
+    const btnSubmitCheckpoint = document.getElementById('btn-submit-checkpoint');
+    const btnHintCheckpoint = document.getElementById('btn-hint-checkpoint');
+    const btnResumeVideo = document.getElementById('btn-resume-video');
+    const checkpointHintBox = document.getElementById('checkpoint-hint-box');
+    const checkpointHintText = document.getElementById('checkpoint-hint-text');
+    const checkpointFeedbackBox = document.getElementById('checkpoint-feedback-box');
+    const checkpointEvalSummary = document.getElementById('checkpoint-eval-summary');
+    const checkpointIdealAnswer = document.getElementById('checkpoint-ideal-answer');
+    const checkpointGradeBadge = document.getElementById('checkpoint-grade-badge');
+    const checkpointScoreAdd = document.getElementById('checkpoint-score-add');
+    const checkpointActiveBanner = document.getElementById('checkpoint-active-banner');
+    const coolFactTitle = document.getElementById('cool-fact-title');
+    const coolFactDesc = document.getElementById('cool-fact-desc');
+    const headerScore = document.getElementById('header-score');
+    const btnAudioToggle = document.getElementById('btn-audio-toggle');
+    const audioLabel = document.getElementById('audio-label');
+
+    // --- NAVIGATION TAB SWITCHING ---
+    function switchTab(activeView, activeBtn) {
+      [viewTheater, viewLabs, viewMock, viewCheatsheet].forEach(v => v.classList.add('hidden'));
+      [navBtnTheater, navBtnLabs, navBtnMock, navBtnCheatsheet].forEach(b => {
+        b.classList.remove('bg-indigo-600', 'text-white', 'shadow');
+        b.classList.add('text-slate-400');
+      });
+      activeView.classList.remove('hidden');
+      activeBtn.classList.add('bg-indigo-600', 'text-white', 'shadow');
+      activeBtn.classList.remove('text-slate-400');
+    }
+
+    navBtnTheater.addEventListener('click', () => switchTab(viewTheater, navBtnTheater));
+    navBtnLabs.addEventListener('click', () => {
+      switchTab(viewLabs, navBtnLabs);
+      renderLabWorkspace(currentTopicIndex);
+    });
+    navBtnMock.addEventListener('click', () => switchTab(viewMock, navBtnMock));
+    navBtnCheatsheet.addEventListener('click', () => switchTab(viewCheatsheet, navBtnCheatsheet));
+
+    // --- TOAST UTILITY ---
+    function showToast(msg, icon = '✨') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-icon').textContent = icon;
+      document.getElementById('toast-msg').textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3200);
+    }
+
+    // --- SPEECH SYNTHESIS NARRATOR ---
+    function speakNarration(text) {
+      if (!speechEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const cleanText = text.replace(/\[CHECKPOINT \d+\]:?/gi, '');
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.rate = playbackSpeed;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    btnAudioToggle.addEventListener('click', () => {
+      speechEnabled = !speechEnabled;
+      if (!speechEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      audioLabel.textContent = speechEnabled ? "Narrator: ON" : "Narrator: OFF";
+      showToast(speechEnabled ? "Voice narration enabled" : "Voice narration muted", speechEnabled ? "🔊" : "🔇");
+    });
+
+    // --- POPULATE SIDEBAR TOPIC LIST ---
+    function renderTopicList() {
+      topicListContainer.innerHTML = '';
+      SYLLABUS.forEach((topic, idx) => {
+        const item = document.createElement('div');
+        item.className = `p-3 cursor-pointer transition-all border-l-4 ${
+          idx === currentTopicIndex 
+            ? 'bg-slate-800/90 border-cyan-400 text-white' 
+            : 'border-transparent text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+        }`;
+        
+        const isSolved = checkpointSolved[idx];
+        item.innerHTML = `
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-[11px] ${idx === currentTopicIndex ? 'text-cyan-400' : 'text-slate-500'}">${topic.badge}</span>
+            <span class="text-[10px] font-mono ${isSolved ? 'text-emerald-400 font-bold' : 'text-slate-500'}">
+              ${isSolved ? '✓ Solved' : topic.duration}
+            </span>
+          </div>
+          <div class="text-xs font-semibold mt-1 leading-snug">${topic.title}</div>
+          <div class="text-[11px] text-slate-500 truncate mt-0.5">${topic.subtitle}</div>
+        `;
+        item.addEventListener('click', () => {
+          loadTopic(idx);
+        });
+        topicListContainer.appendChild(item);
+      });
+    }
+
+    // --- LOAD SELECTED TOPIC ---
+    function loadTopic(idx) {
+      currentTopicIndex = idx;
+      currentTime = 0;
+      pauseVideo();
+      renderTopicList();
+
+      const topic = SYLLABUS[idx];
+      lectureBadge.textContent = topic.badge;
+      lectureTitle.textContent = topic.title;
+      lectureSubtitle.textContent = topic.subtitle;
+      coolFactTitle.textContent = topic.coolFact.title;
+      coolFactDesc.textContent = topic.coolFact.desc;
+
+      checkpointQuestion.textContent = topic.checkpoint.question;
+      checkpointHintText.textContent = topic.checkpoint.hint;
+      checkpointIdealAnswer.textContent = topic.checkpoint.idealAnswer;
+      checkpointInput.value = '';
+      checkpointHintBox.classList.add('hidden');
+      checkpointFeedbackBox.classList.add('hidden');
+      checkpointCard.classList.remove('border-amber-500', 'bg-amber-950/20');
+      checkpointActiveBanner.classList.add('hidden');
+
+      videoTimeline.value = 0;
+      updateTimeDisplay();
+      updateCaptions(0);
+      drawVideoFrame(0);
+    }
+
+    // --- VIDEO TIMELINE & CANVAS ANIMATION ---
+    function drawVideoFrame(timeSec) {
+      ctx.clearRect(0, 0, videoCanvas.width, videoCanvas.height);
+      const w = videoCanvas.width;
+      const h = videoCanvas.height;
+
+      // Draw subtle background grid
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < w; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+      }
+      for (let y = 0; y < h; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      // Draw Topic-Specific Animated Graphic
+      switch(currentTopicIndex) {
+        case 0: // Images as Data: Pixel Matrix & RGB Channels
+          drawImagesAsDataVisual(timeSec, w, h);
+          break;
+        case 1: // CNNs: Sliding Kernel & Feature Maps
+          drawCNNVisual(timeSec, w, h);
+          break;
+        case 2: // Training & Diagnostics: Loss Landscape
+          drawTrainingVisual(timeSec, w, h);
+          break;
+        case 3: // Transfer Learning: Freezing Layers
+          drawTransferLearningVisual(timeSec, w, h);
+          break;
+        case 4: // Object Detection: Grid & NMS Boxes
+          drawDetectionVisual(timeSec, w, h);
+          break;
+        case 5: // Segmentation: U-Net Skip Connections
+          drawSegmentationVisual(timeSec, w, h);
+          break;
+        case 6: // ViTs & Multimodal: Patches & Attention
+          drawViTVisual(timeSec, w, h);
+          break;
+        case 7: // Video & Tracking: Kalman Vector & Hungarian Matching
+          drawTrackingVisual(timeSec, w, h);
+          break;
+        case 8: // Deployment & Grad-CAM: Saliency Heatmap
+          drawDeploymentVisual(timeSec, w, h);
+          break;
+      }
+    }
+
+    // --- VISUALIZERS FOR 9 TOPICS ---
+    function drawImagesAsDataVisual(t, w, h) {
+      // Draw 3D tensor slices (RGB Channels)
+      const offset = Math.sin(t * 0.05) * 5;
+      const channels = [
+        { label: 'R (Red Matrix)', color: 'rgba(239, 68, 68, 0.7)', stroke: '#ef4444', dx: -60 },
+        { label: 'G (Green Matrix)', color: 'rgba(34, 197, 94, 0.7)', stroke: '#22c55e', dx: 0 },
+        { label: 'B (Blue Matrix)', color: 'rgba(59, 130, 246, 0.7)', stroke: '#3b82f6', dx: 60 }
+      ];
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Image as a 3D Tensor: Shape (Height, Width, 3 Channels)', 30, 35);
+
+      channels.forEach((ch, idx) => {
+        const x = w/2 + ch.dx - 90 + offset;
+        const y = 80 + idx * 18;
+        ctx.fillStyle = ch.color;
+        ctx.strokeStyle = ch.stroke;
+        ctx.lineWidth = 2;
+        ctx.fillRect(x, y, 160, 120);
+        ctx.strokeRect(x, y, 160, 120);
+
+        // draw pixel grid cells
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.moveTo(x + i*40, y);
+          ctx.lineTo(x + i*40, y + 120);
+          ctx.stroke();
+        }
+      });
+
+      // Normalization formula box
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.fillRect(30, h - 70, w - 60, 50);
+      ctx.strokeRect(30, h - 70, w - 60, 50);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px Fira Code';
+      ctx.fillText('Pixel Normalization Formula:  X_norm = (X - ImageNet_Mean) / ImageNet_Std', 45, h - 40);
+    }
+
+    function drawCNNVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('2D Convolution & Parameter Sharing (Translation Equivariance)', 30, 35);
+
+      // Input Grid (6x6)
+      const gx = 60, gy = 60, cs = 26;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(gx, gy, cs*6, cs*6);
+      ctx.strokeStyle = '#475569';
+      for (let r=0; r<=6; r++) {
+        ctx.beginPath(); ctx.moveTo(gx, gy+r*cs); ctx.lineTo(gx+6*cs, gy+r*cs); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(gx+r*cs, gy); ctx.lineTo(gx+r*cs, gy+6*cs); ctx.stroke();
+      }
+
+      // Animated 3x3 Kernel sliding
+      const step = Math.floor((t * 0.1) % 16);
+      const kr = Math.floor(step / 4);
+      const kc = step % 4;
+
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.fillRect(gx + kc*cs, gy + kr*cs, cs*3, cs*3);
+      ctx.strokeRect(gx + kc*cs, gy + kr*cs, cs*3, cs*3);
+
+      // Arrow pointing to Feature Map
+      ctx.strokeStyle = '#818cf8';
+      ctx.beginPath();
+      ctx.moveTo(gx + 6*cs + 20, gy + 3*cs);
+      ctx.lineTo(gx + 6*cs + 90, gy + 3*cs);
+      ctx.stroke();
+
+      // Feature Map Output (4x4)
+      const fx = gx + 6*cs + 110, fy = gy + cs;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(fx, fy, cs*4, cs*4);
+      ctx.strokeStyle = '#818cf8';
+      for (let r=0; r<=4; r++) {
+        ctx.beginPath(); ctx.moveTo(fx, fy+r*cs); ctx.lineTo(fx+4*cs, fy+r*cs); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx+r*cs, fy); ctx.lineTo(fx+r*cs, fy+4*cs); ctx.stroke();
+      }
+
+      // Highlight active computed feature cell
+      ctx.fillStyle = '#818cf8';
+      ctx.fillRect(fx + kc*cs, fy + kr*cs, cs, cs);
+
+      // Formula note
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px Fira Code';
+      ctx.fillText(`Output Size = floor((6 - 3 + 2*0)/1) + 1 = 4x4`, fx, fy + cs*4 + 35);
+    }
+
+    function drawTrainingVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Classifier Diagnostics: Training Loss vs Validation Loss', 30, 35);
+
+      // Draw Chart Axes
+      const ox = 70, oy = h - 60, cw = w - 140, ch = 160;
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ox, oy - ch);
+      ctx.lineTo(ox, oy);
+      ctx.lineTo(ox + cw, oy);
+      ctx.stroke();
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px Inter';
+      ctx.fillText('Epochs ➔', ox + cw - 50, oy + 25);
+      ctx.fillText('Loss', ox - 40, oy - ch + 20);
+
+      // Draw Training Curve (green falling)
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 0; x <= cw; x += 10) {
+        const y = (oy - ch + 20) + (ch - 40) * Math.exp(-x / (cw * 0.3));
+        if (x === 0) ctx.moveTo(ox + x, y);
+        else ctx.lineTo(ox + x, y);
+      }
+      ctx.stroke();
+
+      // Draw Validation Curve (overfitting: rises after halfway)
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let x = 0; x <= cw; x += 10) {
+        let y;
+        if (x < cw * 0.45) {
+          y = (oy - ch + 30) + (ch - 45) * Math.exp(-x / (cw * 0.35));
+        } else {
+          const minVal = (oy - ch + 30) + (ch - 45) * Math.exp(-(cw*0.45) / (cw * 0.35));
+          y = minVal - (x - cw * 0.45) * 0.4;
+        }
+        if (x === 0) ctx.moveTo(ox + x, y);
+        else ctx.lineTo(ox + x, y);
+      }
+      ctx.stroke();
+
+      // Legend
+      ctx.fillStyle = '#22c55e'; ctx.fillText('■ Train Loss (Decreasing)', ox + 20, 60);
+      ctx.fillStyle = '#f43f5e'; ctx.fillText('■ Validation Loss (Diverging = Overfitting!)', ox + 220, 60);
+    }
+
+    function drawTransferLearningVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Transfer Learning Strategy: Feature Extractor vs Fine-Tuning', 30, 35);
+
+      const layers = [
+        { name: 'Conv 1 (Edges)', status: 'FROZEN', color: '#0284c7' },
+        { name: 'Conv 2 (Textures)', status: 'FROZEN', color: '#0284c7' },
+        { name: 'Conv 3 (Motifs)', status: 'FROZEN', color: '#0284c7' },
+        { name: 'Conv 4 (Parts)', status: 'FROZEN', color: '#0284c7' },
+        { name: 'FC Head (New Task)', status: 'TRAINABLE', color: '#10b981' }
+      ];
+
+      const bw = 100, bh = 110, startX = 60, startY = 80;
+      layers.forEach((l, i) => {
+        const x = startX + i * 115;
+        ctx.fillStyle = l.color;
+        ctx.fillRect(x, startY, bw, bh);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, startY, bw, bh);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px Inter';
+        ctx.fillText(l.name, x + 8, startY + 40);
+
+        ctx.fillStyle = l.status === 'FROZEN' ? '#93c5fd' : '#a7f3d0';
+        ctx.font = 'bold 10px Fira Code';
+        ctx.fillText(l.status, x + 15, startY + 75);
+      });
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '12px Inter';
+      ctx.fillText('Small dataset? Freeze Conv1-4 (requires_grad = False). Train only the new FC Head!', 60, h - 40);
+    }
+
+    function drawDetectionVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Object Detection: Bounding Box & Non-Maximum Suppression (NMS)', 30, 35);
+
+      // Draw simulated camera scene
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(60, 60, 280, 200);
+
+      // Draw object (e.g. car silhouette)
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(120, 130, 160, 80);
+      ctx.beginPath();
+      ctx.arc(150, 210, 20, 0, Math.PI*2);
+      ctx.arc(250, 210, 20, 0, Math.PI*2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+
+      // Draw Overlapping candidate boxes
+      ctx.strokeStyle = '#f59e0b'; // Duplicate box
+      ctx.lineWidth = 2;
+      ctx.strokeRect(110, 115, 175, 105);
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = '10px Fira Code';
+      ctx.fillText('Car 0.81 (Suppressed)', 115, 110);
+
+      ctx.strokeStyle = '#10b981'; // Winner box
+      ctx.lineWidth = 3;
+      ctx.strokeRect(115, 120, 170, 100);
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('Car 0.94 [Selected]', 120, 135);
+
+      // Text explanation on right
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = '12px Inter';
+      ctx.fillText('1. Filter boxes by confidence (>0.5)', 370, 90);
+      ctx.fillText('2. Pick highest confidence box (0.94)', 370, 120);
+      ctx.fillText('3. Calculate IoU with neighboring boxes', 370, 150);
+      ctx.fillText('4. If IoU > 0.45 threshold ➔ Suppress!', 370, 180);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('IoU = Area of Overlap / Area of Union', 370, 220);
+    }
+
+    function drawSegmentationVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('U-Net Architecture: Encoder, Decoder, & Skip Connections', 30, 35);
+
+      // Draw U-shape diagram
+      const encX = 100, decX = 460;
+      
+      // Encoder blocks down
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(encX, 60, 80, 40);
+      ctx.fillRect(encX + 30, 120, 80, 40);
+      ctx.fillRect(encX + 60, 180, 80, 40);
+
+      // Bottleneck
+      ctx.fillStyle = '#4f46e5';
+      ctx.fillRect(w/2 - 50, 230, 100, 40);
+
+      // Decoder blocks up
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(decX - 60, 180, 80, 40);
+      ctx.fillRect(decX - 30, 120, 80, 40);
+      ctx.fillRect(decX, 60, 80, 40);
+
+      // Draw Skip Connections (horizontal arrows)
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 6]);
+
+      // Level 1 skip
+      ctx.beginPath(); ctx.moveTo(encX + 80, 80); ctx.lineTo(decX, 80); ctx.stroke();
+      // Level 2 skip
+      ctx.beginPath(); ctx.moveTo(encX + 110, 140); ctx.lineTo(decX - 30, 140); ctx.stroke();
+      // Level 3 skip
+      ctx.beginPath(); ctx.moveTo(encX + 140, 200); ctx.lineTo(decX - 60, 200); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px Inter';
+      ctx.fillText('◄ Skip Connections (Preserves fine spatial edges)', w/2 - 130, 75);
+    }
+
+    function drawViTVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Vision Transformer (ViT): Patchify, [CLS] Token & Self-Attention', 30, 35);
+
+      // Draw 3x3 grid of patches
+      const px = 60, py = 70, s = 45;
+      for (let r=0; r<3; r++) {
+        for (let c=0; c<3; c++) {
+          ctx.fillStyle = `hsl(${(r*3+c)*35}, 70%, 45%)`;
+          ctx.fillRect(px + c*s, py + r*s, s - 4, s - 4);
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '10px Fira Code';
+          ctx.fillText(`P${r*3+c+1}`, px + c*s + 12, py + r*s + 26);
+        }
+      }
+
+      // Linear Projection to tokens
+      ctx.strokeStyle = '#818cf8';
+      ctx.beginPath(); ctx.moveTo(px + 3*s + 15, py + 1.5*s); ctx.lineTo(px + 3*s + 55, py + 1.5*s); ctx.stroke();
+
+      // Sequence of Tokens including [CLS]
+      const tx = px + 3*s + 70;
+      ctx.fillStyle = '#f43f5e'; // CLS token
+      ctx.fillRect(tx, 90, 60, 30);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px Fira Code';
+      ctx.fillText('[CLS]', tx + 14, 110);
+
+      for (let i=0; i<4; i++) {
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(tx + 70 + i*50, 90, 42, 30);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`Tok${i+1}`, tx + 75 + i*50, 110);
+      }
+
+      // Self Attention equation
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px Fira Code';
+      ctx.fillText('Self-Attention: Attention(Q, K, V) = softmax(Q * K^T / sqrt(d_k)) * V', 60, h - 45);
+    }
+
+    function drawTrackingVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Multi-Object Tracking: Kalman Motion Prediction & Hungarian Matching', 30, 35);
+
+      // Trajectory 1
+      const cx1 = 120 + ((t * 2) % 360);
+      const cy1 = 120 + Math.sin(t * 0.1) * 30;
+
+      // Draw bounding box
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cx1, cy1, 50, 70);
+      ctx.fillStyle = '#10b981';
+      ctx.font = '10px Fira Code';
+      ctx.fillText('Track ID: 4', cx1, cy1 - 8);
+
+      // Draw Kalman velocity vector arrow
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(cx1 + 25, cy1 + 35);
+      ctx.lineTo(cx1 + 80, cy1 + 35);
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('Kalman Prediction Vector ➔', cx1 + 30, cy1 + 25);
+
+      // Explanatory badge
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(60, h - 70, w - 120, 45);
+      ctx.strokeStyle = '#334155';
+      ctx.strokeRect(60, h - 70, w - 120, 45);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px Inter';
+      ctx.fillText('SORT = Kalman (Motion) + Hungarian (IoU). DeepSORT = Adds Deep Re-ID Appearance Features!', 80, h - 42);
+    }
+
+    function drawDeploymentVisual(t, w, h) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px Inter';
+      ctx.fillText('Deployment & Explainability: INT8 Quantization & Grad-CAM Heatmaps', 30, 35);
+
+      // Quantization Comparison Table
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(60, 65, 260, 140);
+      ctx.strokeStyle = '#334155';
+      ctx.strokeRect(60, 65, 260, 140);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 12px Inter';
+      ctx.fillText('Model Precision Benchmark:', 75, 90);
+      ctx.font = '11px Fira Code';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('FP32: 100 MB | 45ms latency', 75, 120);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillText('FP16:  50 MB | 25ms latency', 75, 145);
+      ctx.fillStyle = '#10b981';
+      ctx.fillText('INT8:  25 MB | 12ms (4x size reduction!)', 75, 175);
+
+      // Grad-CAM visualization
+      const gx = 370, gy = 65;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(gx, gy, 200, 140);
+      ctx.strokeStyle = '#475569';
+      ctx.strokeRect(gx, gy, 200, 140);
+
+      // Saliency radial gradient
+      const radGrad = ctx.createRadialGradient(gx + 100, gy + 70, 10, gx + 100, gy + 70, 70);
+      radGrad.addColorStop(0, 'rgba(239, 68, 68, 0.85)');
+      radGrad.addColorStop(0.5, 'rgba(234, 179, 8, 0.5)');
+      radGrad.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+
+      ctx.fillStyle = radGrad;
+      ctx.fillRect(gx, gy, 200, 140);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Inter';
+      ctx.fillText('Grad-CAM Saliency Heatmap', gx + 15, gy + 25);
+      ctx.font = '10px Inter';
+      ctx.fillText('(Where the CNN looked to decide)', gx + 15, gy + 125);
+    }
+
+    // --- PLAYBACK ENGINE ---
+    function playVideo() {
+      if (isPlaying) return;
+      isPlaying = true;
+      btnVideoPlay.textContent = '⏸';
+      btnVideoPlay.classList.replace('bg-cyan-500', 'bg-amber-500');
+
+      playInterval = setInterval(() => {
+        currentTime += 0.5 * playbackSpeed;
+        if (currentTime > 100) {
+          currentTime = 100;
+          pauseVideo();
+        }
+
+        videoTimeline.value = currentTime;
+        updateTimeDisplay();
+        updateCaptions(currentTime);
+        drawVideoFrame(currentTime);
+
+        // Check if hit checkpoint
+        const currentTopic = SYLLABUS[currentTopicIndex];
+        if (Math.abs(currentTime - currentTopic.checkpointTime) < 1 && !checkpointSolved[currentTopicIndex]) {
+          triggerCheckpointPause();
+        }
+      }, 500);
+    }
+
+    function pauseVideo() {
+      isPlaying = false;
+      clearInterval(playInterval);
+      btnVideoPlay.textContent = '▶';
+      btnVideoPlay.classList.replace('bg-amber-500', 'bg-cyan-500');
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    btnVideoPlay.addEventListener('click', () => {
+      if (isPlaying) pauseVideo();
+      else playVideo();
+    });
+
+    btnVideoRestart.addEventListener('click', () => {
+      currentTime = 0;
+      videoTimeline.value = 0;
+      updateTimeDisplay();
+      updateCaptions(0);
+      drawVideoFrame(0);
+      playVideo();
+    });
+
+    videoTimeline.addEventListener('input', (e) => {
+      currentTime = parseFloat(e.target.value);
+      updateTimeDisplay();
+      updateCaptions(currentTime);
+      drawVideoFrame(currentTime);
+    });
+
+    speedSelect.addEventListener('change', (e) => {
+      playbackSpeed = parseFloat(e.target.value);
+      showToast(`Playback speed set to ${playbackSpeed}x`, '⚡');
+    });
+
+    function updateTimeDisplay() {
+      const currentSec = Math.floor(currentTime * 1.5);
+      const totalSec = 150;
+      const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+      videoTimeDisplay.textContent = `${fmt(currentSec)} / ${fmt(totalSec)}`;
+    }
+
+    let lastCaptionText = "";
+    function updateCaptions(time) {
+      const topic = SYLLABUS[currentTopicIndex];
+      let currentCaption = topic.captions[0].text;
+      for (let cap of topic.captions) {
+        if (time >= cap.time) {
+          currentCaption = cap.text;
+        }
+      }
+      if (currentCaption !== lastCaptionText) {
+        lastCaptionText = currentCaption;
+        lectureCaptions.textContent = currentCaption;
+        if (isPlaying) {
+          speakNarration(currentCaption);
+        }
+      }
+    }
+
+    // --- CHECKPOINT INTERACTION ---
+    function triggerCheckpointPause() {
+      pauseVideo();
+      checkpointActiveBanner.classList.remove('hidden');
+      checkpointCard.classList.add('border-amber-500', 'bg-amber-950/20');
+      checkpointCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showToast('Checkpoint Reached! Test your oral answer below.', '🛑');
+      speakNarration("Checkpoint reached. Answer the professor's question to test your oral explanation.");
+    }
+
+    btnHintCheckpoint.addEventListener('click', () => {
+      checkpointHintBox.classList.toggle('hidden');
+    });
+
+    btnResumeVideo.addEventListener('click', () => {
+      checkpointActiveBanner.classList.add('hidden');
+      checkpointCard.classList.remove('border-amber-500', 'bg-amber-950/20');
+      currentTime += 2; // skip past checkpoint marker
+      playVideo();
+    });
+
+    btnSubmitCheckpoint.addEventListener('click', async () => {
+      // Check if Render AI Studio backend is available
+      const aiEvaluation = await evaluateOralWithGemini(
+        SYLLABUS[currentTopicIndex].title,
+        SYLLABUS[currentTopicIndex].checkpoint.question,
+        checkpointInput.value.trim(),
+        SYLLABUS[currentTopicIndex].checkpoint.keywords
+      );
+      if (aiEvaluation) {
+        checkpointFeedbackBox.classList.remove('hidden');
+        checkpointGradeBadge.textContent = 'AI Studio: ' + aiEvaluation.grade_label + ' (' + aiEvaluation.score + '%)';
+        checkpointGradeBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40';
+        checkpointEvalSummary.innerHTML = '<strong>Gemini Assessment:</strong> ' + aiEvaluation.feedback + '<br><span class="text-cyan-300 font-semibold">Beat 1:</span> ' + aiEvaluation.beat1_clarity + ' <span class="text-indigo-300 font-semibold">Beat 2:</span> ' + aiEvaluation.beat2_mechanism + ' <span class="text-purple-300 font-semibold">Beat 3:</span> ' + aiEvaluation.beat3_tradeoff;
+        checkpointIdealAnswer.textContent = aiEvaluation.model_answer;
+        userScore += aiEvaluation.score;
+        headerScore.textContent = userScore + ' pts';
+        checkpointSolved[currentTopicIndex] = true;
+        renderTopicList();
+        showToast('Gemini Evaluated: ' + aiEvaluation.score + '%!', '🏆');
+        return;
+      }
+
+      const input = checkpointInput.value.trim().toLowerCase();
+      if (!input || input.length < 10) {
+        showToast('Please type a more detailed oral answer (at least 2-3 sentences)!', '⚠️');
+        return;
+      }
+
+      const topic = SYLLABUS[currentTopicIndex];
+      let matchCount = 0;
+      topic.checkpoint.keywords.forEach(kw => {
+        if (input.includes(kw.toLowerCase())) matchCount++;
+      });
+
+      const scorePercent = Math.min(100, Math.round((matchCount / Math.max(3, topic.checkpoint.keywords.length * 0.6)) * 100));
+      
+      checkpointFeedbackBox.classList.remove('hidden');
+      if (scorePercent >= 60) {
+        checkpointGradeBadge.textContent = `Grade: Outstanding (${scorePercent}%)`;
+        checkpointGradeBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+        checkpointEvalSummary.textContent = "Excellent defense! You clearly articulated the core mechanism and used proper academic terminology. Your lecturer will love this level of clarity.";
+        userScore += 50;
+        checkpointSolved[currentTopicIndex] = true;
+        renderTopicList();
+      } else {
+        checkpointGradeBadge.textContent = `Grade: Needs More Polish (${scorePercent}%)`;
+        checkpointGradeBadge.className = "px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/40";
+        checkpointEvalSummary.textContent = "You're on the right track! However, remember to hit the technical buzzwords (e.g. covariate shift, parameter sharing, IoU) that demonstrate senior-level understanding.";
+        userScore += 25;
+      }
+
+      headerScore.textContent = `${userScore} pts`;
+      showToast(`Answer Evaluated: ${scorePercent}% match!`, '🎯');
+    });
+
+    // --- VIEW 2: CODE LABS SUITE ---
+    function renderLabWorkspace(topicIdx) {
+      const container = document.getElementById('lab-workspace');
+      const topic = SYLLABUS[topicIdx];
+
+      container.innerHTML = `
+        <div class="border-b border-slate-800 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-bold">${topic.badge} Interactive Lab</span>
+            <h2 class="text-xl font-black text-white">${topic.title}</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">Implement and tweak the core mathematics with live interactive controls.</p>
+        </div>
+
+        <div id="dynamic-lab-content" class="space-y-6"></div>
+      `;
+
+      const dynamicContent = document.getElementById('dynamic-lab-content');
+      
+      if (topicIdx === 0) { // Lab 1: Images as Data
+        dynamicContent.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                <span>🎨 Color Channel Separator & Mean Normalizer</span>
+              </h3>
+              <p class="text-xs text-slate-400">
+                Adjust the sliders to simulate shifting pixel intensity distributions and applying zero-mean standardization.
+              </p>
+              
+              <div class="space-y-3 text-xs">
+                <div>
+                  <div class="flex justify-between text-slate-300">
+                    <span>Input Mean Shift:</span>
+                    <span id="lab1-mean-val" class="font-mono text-cyan-400">128</span>
+                  </div>
+                  <input id="lab1-mean-slider" type="range" min="0" max="255" value="128" class="w-full slider-thumb mt-1">
+                </div>
+                <div>
+                  <div class="flex justify-between text-slate-300">
+                    <span>ImageNet Std Divisor:</span>
+                    <span id="lab1-std-val" class="font-mono text-cyan-400">58.3</span>
+                  </div>
+                  <input id="lab1-std-slider" type="range" min="10" max="100" value="58" class="w-full slider-thumb mt-1">
+                </div>
+              </div>
+
+              <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs font-mono space-y-1">
+                <div class="text-slate-500"># PyTorch Normalization Transform</div>
+                <div class="text-cyan-300">transform = transforms.Compose([</div>
+                <div class="text-slate-300 pl-4">transforms.ToTensor(), # scales [0, 255] -> [0.0, 1.0]</div>
+                <div class="text-slate-300 pl-4">transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])</div>
+                <div class="text-cyan-300">])</div>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center space-y-4">
+              <div class="text-xs font-bold text-slate-300">Interactive 8x8 Pixel Grid Matrix</div>
+              <canvas id="lab1-canvas" width="200" height="200" class="border border-slate-700 rounded-xl"></canvas>
+              <div id="lab1-stats" class="text-xs text-slate-400 font-mono">Normalized Value: 0.00</div>
+            </div>
+          </div>
+        `;
+
+        const slider = document.getElementById('lab1-mean-slider');
+        const stdSlider = document.getElementById('lab1-std-slider');
+        const meanVal = document.getElementById('lab1-mean-val');
+        const stdVal = document.getElementById('lab1-std-val');
+        const stats = document.getElementById('lab1-stats');
+        const c1 = document.getElementById('lab1-canvas');
+        const ctx1 = c1.getContext('2d');
+
+        function updateLab1() {
+          const m = parseInt(slider.value);
+          const s = parseFloat(stdSlider.value);
+          meanVal.textContent = m;
+          stdVal.textContent = s;
+
+          const norm = ((m - 128) / s).toFixed(3);
+          stats.textContent = `Pixel Value: ${m} ➔ Normalized: ${norm}`;
+
+          ctx1.clearRect(0, 0, 200, 200);
+          for (let r=0; r<8; r++) {
+            for (let c=0; c<8; c++) {
+              const val = Math.min(255, Math.max(0, m + (r*8+c)*2 - 64));
+              ctx1.fillStyle = `rgb(${val}, ${val*0.8}, ${val*0.6})`;
+              ctx1.fillRect(c*25, r*25, 24, 24);
+            }
+          }
+        }
+        slider.addEventListener('input', updateLab1);
+        stdSlider.addEventListener('input', updateLab1);
+        updateLab1();
+
+      } else if (topicIdx === 1) { // Lab 2: CNNs
+        dynamicContent.innerHTML = `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-5">
+            <h3 class="text-sm font-bold text-white">🧮 Interactive Convolution Arithmetic & Formula Engine</h3>
+            <p class="text-xs text-slate-400">
+              Professors frequently ask students to calculate output tensor shapes in their heads during oral exams. Master the formula: 
+              <code class="text-cyan-400">O = floor((W - K + 2*P) / S) + 1</code>.
+            </p>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+              <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <span class="text-slate-400">Input Dimension (W):</span>
+                <input id="cnn-w" type="number" value="32" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 mt-1 text-white font-mono">
+              </div>
+              <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <span class="text-slate-400">Kernel Size (K):</span>
+                <input id="cnn-k" type="number" value="3" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 mt-1 text-white font-mono">
+              </div>
+              <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <span class="text-slate-400">Zero Padding (P):</span>
+                <input id="cnn-p" type="number" value="1" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 mt-1 text-white font-mono">
+              </div>
+              <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                <span class="text-slate-400">Stride (S):</span>
+                <input id="cnn-s" type="number" value="1" class="w-full bg-slate-900 border border-slate-700 rounded p-1.5 mt-1 text-white font-mono">
+              </div>
+            </div>
+
+            <div class="p-4 bg-cyan-950/30 border border-cyan-800/40 rounded-xl flex items-center justify-between">
+              <div>
+                <span class="text-xs text-cyan-400 font-bold uppercase tracking-wider">Output Feature Map Dimension:</span>
+                <div id="cnn-output-result" class="text-2xl font-black text-white mt-1">32 x 32</div>
+              </div>
+              <div class="text-right text-xs text-slate-400">
+                <div>Formula: ((32 - 3 + 2(1)) / 1) + 1 = 32</div>
+                <div class="text-emerald-400 font-bold mt-0.5">Same-dimension convolution preserved!</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const cw = document.getElementById('cnn-w');
+        const ck = document.getElementById('cnn-k');
+        const cp = document.getElementById('cnn-p');
+        const cs = document.getElementById('cnn-s');
+        const outRes = document.getElementById('cnn-output-result');
+
+        function calcCNN() {
+          const w = parseInt(cw.value) || 32;
+          const k = parseInt(ck.value) || 3;
+          const p = parseInt(cp.value) || 0;
+          const s = parseInt(cs.value) || 1;
+          const o = Math.floor((w - k + 2 * p) / s) + 1;
+          outRes.textContent = `${o} x ${o}`;
+        }
+        [cw, ck, cp, cs].forEach(inp => inp.addEventListener('input', calcCNN));
+
+      } else if (topicIdx === 4) { // Lab 5: Object Detection NMS
+        dynamicContent.innerHTML = `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 class="text-sm font-bold text-white">🎯 Interactive IoU & Non-Maximum Suppression Simulator</h3>
+            <p class="text-xs text-slate-400">
+              Drag the NMS IoU threshold slider to see how redundant overlapping bounding boxes are purged.
+            </p>
+
+            <div class="space-y-2 text-xs">
+              <div class="flex justify-between text-slate-300">
+                <span>NMS IoU Threshold (tau):</span>
+                <span id="nms-thresh-val" class="font-mono text-cyan-400">0.45</span>
+              </div>
+              <input id="nms-slider" type="range" min="0.1" max="0.9" step="0.05" value="0.45" class="w-full slider-thumb">
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col items-center">
+                <canvas id="nms-canvas" width="280" height="180" class="border border-slate-700 rounded-lg"></canvas>
+              </div>
+              <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
+                <div class="font-bold text-white">Detection Pipeline Steps:</div>
+                <div class="text-slate-400">Box A (Confidence 0.95): <span class="text-emerald-400 font-bold">KEPT (Winner)</span></div>
+                <div class="text-slate-400">Box B (Confidence 0.82, IoU 0.65 with A): <span id="nms-box-b-status" class="text-rose-400 font-bold">SUPPRESSED</span></div>
+                <div class="text-slate-400">Box C (Confidence 0.78, IoU 0.20 with A): <span class="text-emerald-400 font-bold">KEPT (Distinct Object)</span></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const nmsSlider = document.getElementById('nms-slider');
+        const nmsVal = document.getElementById('nms-thresh-val');
+        const bStatus = document.getElementById('nms-box-b-status');
+        const nc = document.getElementById('nms-canvas');
+        const nctx = nc.getContext('2d');
+
+        function drawNMS() {
+          const t = parseFloat(nmsSlider.value);
+          nmsVal.textContent = t.toFixed(2);
+          const iouB = 0.65;
+          const isSuppressed = iouB > t;
+          bStatus.textContent = isSuppressed ? "SUPPRESSED" : "KEPT (Overlapping)";
+          bStatus.className = isSuppressed ? "text-rose-400 font-bold" : "text-amber-400 font-bold";
+
+          nctx.clearRect(0, 0, 280, 180);
+          nctx.fillStyle = '#1e293b';
+          nctx.fillRect(0, 0, 280, 180);
+
+          // Box A (Winner)
+          nctx.strokeStyle = '#10b981';
+          nctx.lineWidth = 3;
+          nctx.strokeRect(50, 40, 100, 80);
+          nctx.fillStyle = '#10b981';
+          nctx.font = '10px Fira Code';
+          nctx.fillText('A (0.95)', 55, 35);
+
+          // Box B (Overlapping)
+          if (!isSuppressed) {
+            nctx.strokeStyle = '#f59e0b';
+            nctx.lineWidth = 2;
+            nctx.strokeRect(70, 50, 95, 80);
+            nctx.fillStyle = '#f59e0b';
+            nctx.fillText('B (0.82)', 75, 45);
+          }
+
+          // Box C (Distinct)
+          nctx.strokeStyle = '#38bdf8';
+          nctx.lineWidth = 2;
+          nctx.strokeRect(170, 50, 80, 80);
+          nctx.fillStyle = '#38bdf8';
+          nctx.fillText('C (0.78)', 175, 45);
+        }
+        nmsSlider.addEventListener('input', drawNMS);
+        drawNMS();
+
+      } else {
+        // Generic Lab template for other modules
+        dynamicContent.innerHTML = `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <h3 class="text-sm font-bold text-white">💻 Hands-on Code Architecture & Implementation Walkthrough</h3>
+            <p class="text-xs text-slate-300">
+              Review this clean, annotated PyTorch implementation pattern for <strong>${topic.title}</strong>:
+            </p>
+            <pre class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs text-cyan-300 font-mono overflow-x-auto leading-relaxed">
+import torch
+import torch.nn as nn
+
+class ${topic.title.replace(/[^a-zA-Z]/g, '')}Module(nn.Module):
+    def __init__(self, in_channels=3, num_classes=10):
+        super().__init__()
+        # Core layers calibrated for ${topic.title}
+        self.backbone = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.head = nn.Linear(64, num_classes)
+
+    def forward(self, x):
+        features = self.backbone(x)
+        # Global Average Pooling replaces parameter-heavy fully connected layers
+        pooled = torch.mean(features, dim=[2, 3])
+        logits = self.head(pooled)
+        return logits
+            </pre>
+            <div class="p-3 bg-indigo-950/30 border border-indigo-800/40 rounded-xl text-xs text-indigo-300">
+              💡 <strong>Oral Defense Tip:</strong> When the professor asks how you avoid parameter explosion before the final classifier, always cite <strong>Global Average Pooling</strong>!
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function renderLabList() {
+      const container = document.getElementById('lab-list');
+      container.innerHTML = '';
+      SYLLABUS.forEach((t, i) => {
+        const item = document.createElement('div');
+        item.className = `p-3 cursor-pointer text-xs font-semibold border-l-4 transition-all ${
+          i === currentTopicIndex ? 'bg-slate-800 text-cyan-400 border-cyan-400' : 'text-slate-400 border-transparent hover:bg-slate-800/40'
+        }`;
+        item.innerHTML = `
+          <div class="text-[10px] text-slate-500 font-mono">${t.badge}</div>
+          <div class="mt-0.5 truncate">${t.title}</div>
+        `;
+        item.addEventListener('click', () => {
+          currentTopicIndex = i;
+          renderLabList();
+          renderLabWorkspace(i);
+        });
+        container.appendChild(item);
+      });
+    }
+
+    // --- VIEW 3: 10-MINUTE MOCK ORAL EXAM ---
+    const btnStartExam = document.getElementById('btn-start-exam');
+    const btnResetExam = document.getElementById('btn-reset-exam');
+    const examTimerDisplay = document.getElementById('exam-timer');
+    const examCurrentPrompt = document.getElementById('exam-current-prompt');
+    const examQuestionNum = document.getElementById('exam-question-num');
+    const btnReadQuestionAloud = document.getElementById('btn-read-question-aloud');
+    const examResponseInput = document.getElementById('exam-response-input');
+    const btnSubmitExamAnswer = document.getElementById('btn-submit-exam-answer');
+    const btnNextExamQuestion = document.getElementById('btn-next-exam-question');
+    const examEvalCard = document.getElementById('exam-eval-card');
+    const examRubricScore = document.getElementById('exam-rubric-score');
+    const rubricTerms = document.getElementById('rubric-terms');
+    const examModelAnswer = document.getElementById('exam-model-answer');
+
+    function updateExamQuestion(idx) {
+      currentExamIndex = idx;
+      const q = EXAM_QUESTIONS[idx];
+      examQuestionNum.textContent = `Question ${idx + 1} of ${EXAM_QUESTIONS.length}`;
+      examCurrentPrompt.textContent = `"${q.prompt}"`;
+      examResponseInput.value = '';
+      examEvalCard.classList.add('hidden');
+      if (examTimerInterval) {
+        speakNarration(q.prompt);
+      }
+    }
+
+    btnReadQuestionAloud.addEventListener('click', () => {
+      speakNarration(EXAM_QUESTIONS[currentExamIndex].prompt);
+    });
+
+    btnStartExam.addEventListener('click', () => {
+      if (examTimerInterval) return;
+      examTimeRemaining = 600;
+      updateExamQuestion(0);
+      btnStartExam.classList.add('opacity-50', 'pointer-events-none');
+
+      examTimerInterval = setInterval(() => {
+        examTimeRemaining--;
+        if (examTimeRemaining <= 0) {
+          clearInterval(examTimerInterval);
+          examTimerInterval = null;
+          examTimerDisplay.textContent = "00:00";
+          showToast("Oral Exam Time Expired! 10 minutes completed.", "⏰");
+          speakNarration("Time is up. That concludes your 10-minute oral defense.");
+          btnStartExam.classList.remove('opacity-50', 'pointer-events-none');
+          return;
+        }
+
+        const m = Math.floor(examTimeRemaining / 60);
+        const s = examTimeRemaining % 60;
+        examTimerDisplay.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      }, 1000);
+      showToast("10-minute timer started! Good luck.", "🎙️");
+    });
+
+    btnResetExam.addEventListener('click', () => {
+      clearInterval(examTimerInterval);
+      examTimerInterval = null;
+      examTimeRemaining = 600;
+      examTimerDisplay.textContent = "10:00";
+      btnStartExam.classList.remove('opacity-50', 'pointer-events-none');
+      updateExamQuestion(0);
+      showToast("Mock exam reset.", "🔄");
+    });
+
+    btnSubmitExamAnswer.addEventListener('click', async () => {
+      const aiExamEval = await evaluateOralWithGemini(
+        'Oral Defense Mock Exam',
+        EXAM_QUESTIONS[currentExamIndex].prompt,
+        examResponseInput.value.trim(),
+        EXAM_QUESTIONS[currentExamIndex].keywords
+      );
+      if (aiExamEval) {
+        examRubricScore.textContent = aiExamEval.score + ' / 100';
+        document.getElementById('rubric-clarity').textContent = aiExamEval.beat1_clarity;
+        rubricTerms.textContent = aiExamEval.terms_used.length > 0 ? 'Used: ' + aiExamEval.terms_used.slice(0, 3).join(', ') : 'Terms: ' + aiExamEval.beat2_mechanism;
+        document.getElementById('rubric-tradeoff').textContent = aiExamEval.beat3_tradeoff;
+        examModelAnswer.textContent = '"' + aiExamEval.model_answer + '"';
+        examEvalCard.classList.remove('hidden');
+        userScore += aiExamEval.score;
+        headerScore.textContent = userScore + ' pts';
+        showToast('AI Studio Evaluated: ' + aiExamEval.score + ' points!', '🏆');
+        return;
+      }
+
+      const ans = examResponseInput.value.trim().toLowerCase();
+      if (!ans || ans.length < 15) {
+        showToast("Please provide a more complete oral defense answer!", "⚠️");
+        return;
+      }
+
+      const q = EXAM_QUESTIONS[currentExamIndex];
+      let matches = [];
+      q.keywords.forEach(kw => {
+        if (ans.includes(kw.toLowerCase())) matches.push(kw);
+      });
+
+      const score = Math.min(100, Math.max(50, Math.round((matches.length / Math.max(2, q.keywords.length * 0.5)) * 100)));
+      examRubricScore.textContent = `${score} / 100`;
+      rubricTerms.textContent = matches.length > 0 ? `Used: ${matches.slice(0, 3).join(', ')}` : "Consider adding core technical terms";
+      examModelAnswer.textContent = `"${q.idealAnswer}"`;
+      examEvalCard.classList.remove('hidden');
+
+      userScore += score;
+      headerScore.textContent = `${userScore} pts`;
+      showToast(`Oral answer scored: ${score} points!`, "🏆");
+    });
+
+    btnNextExamQuestion.addEventListener('click', () => {
+      if (currentExamIndex < EXAM_QUESTIONS.length - 1) {
+        updateExamQuestion(currentExamIndex + 1);
+      } else {
+        showToast("You've completed all mock oral exam questions!", "🎉");
+      }
+    });
+
+    // --- VIEW 4: CHEATSHEET & 3-BEAT CARDS ---
+    function renderCheatsheetCards() {
+      const container = document.getElementById('cheatsheet-cards-container');
+      container.innerHTML = '';
+
+      SYLLABUS.forEach(t => {
+        const card = document.createElement('div');
+        card.className = "bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3";
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-cyan-400">${t.badge}</span>
+            <span class="text-[10px] text-slate-500 font-mono">${t.duration} oral pitch</span>
+          </div>
+          <h4 class="text-sm font-bold text-white">${t.title}</h4>
+          
+          <div class="space-y-1.5 text-xs">
+            <div class="p-2.5 bg-slate-950 rounded-xl border border-slate-800/80">
+              <span class="font-bold text-indigo-400 block mb-0.5">Beat 1 & 2 (Definition & Mechanism):</span>
+              <p class="text-slate-300 text-[11px] leading-relaxed">${t.checkpoint.idealAnswer}</p>
+            </div>
+            <div class="p-2.5 bg-purple-950/20 rounded-xl border border-purple-800/30">
+              <span class="font-bold text-purple-400 block mb-0.5">Beat 3 (Recent Fact / Trade-off):</span>
+              <p class="text-slate-300 text-[11px] leading-relaxed">${t.coolFact.title}: ${t.coolFact.desc}</p>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    // --- INITIALIZE APPLICATION ---
+    window.addEventListener('DOMContentLoaded', () => {
+      renderTopicList();
+      renderLabList();
+      renderCheatsheetCards();
+      loadTopic(0);
+    });
+
+  
+    // --- CLOUDFLARE TO RENDER BACKEND INTEGRATION ---
+    const btnOpenBackendModal = document.getElementById('btn-open-backend-modal');
+    const backendModal = document.getElementById('backend-modal');
+    const btnCloseBackendModal = document.getElementById('btn-close-backend-modal');
+    const backendUrlInput = document.getElementById('backend-url-input');
+    const btnTestBackend = document.getElementById('btn-test-backend');
+    const btnSaveBackend = document.getElementById('btn-save-backend');
+    const backendStatusBox = document.getElementById('backend-status-box');
+    const backendDot = document.getElementById('backend-dot');
+    const backendStatusText = document.getElementById('backend-status-text');
+
+    let configuredBackendUrl = "";
+    try {
+      configuredBackendUrl = localStorage.getItem('deepvision_backend_url') || "";
+    } catch(e) {}
+
+    if (configuredBackendUrl) {
+      backendUrlInput.value = configuredBackendUrl;
+      backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+      backendStatusText.textContent = "AI Studio: Ready";
+    }
+
+    btnOpenBackendModal.addEventListener('click', () => {
+      backendModal.classList.remove('hidden');
+    });
+    btnCloseBackendModal.addEventListener('click', () => {
+      backendModal.classList.add('hidden');
+    });
+
+    btnSaveBackend.addEventListener('click', () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      configuredBackendUrl = url;
+      try {
+        localStorage.setItem('deepvision_backend_url', url);
+      } catch(e) {}
+      backendModal.classList.add('hidden');
+      if (url) {
+        backendDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+        backendStatusText.textContent = "AI Studio: Connected";
+        showToast("Connected to Render AI Studio backend!", "🚀");
+      } else {
+        backendDot.className = "w-2 h-2 rounded-full bg-amber-400";
+        backendStatusText.textContent = "Mode: Client Heuristic";
+        showToast("Using client-side mode", "ℹ️");
+      }
+    });
+
+    btnTestBackend.addEventListener('click', async () => {
+      let url = backendUrlInput.value.trim();
+      if (url.endsWith('/')) url = url.slice(0, -1);
+      if (!url) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-amber-950/50 text-amber-300 border border-amber-800/40 block";
+        backendStatusBox.textContent = "Please enter your Render URL (e.g. https://deepvision-backend.onrender.com)";
+        return;
+      }
+
+      backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-cyan-950/50 text-cyan-300 border border-cyan-800/40 block";
+      backendStatusBox.textContent = "Pinging " + url + "/health ... (Note: free Render instances wake up in ~30s on cold start)";
+
+      try {
+        const t0 = performance.now();
+        const res = await fetch(url + "/health");
+        const t1 = performance.now();
+        if (res.ok) {
+          const data = await res.json();
+          const latency = Math.round(t1 - t0);
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-emerald-950/50 text-emerald-300 border border-emerald-800/40 block";
+          backendStatusBox.innerHTML = "✓ Connected in " + latency + "ms!<br>AI Studio Key: " + (data.ai_studio_ready ? "Configured (Active)" : "Pending setup in Render env") + "<br>Model: " + (data.model || "gemini-1.5-flash");
+        } else {
+          backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+          backendStatusBox.textContent = "HTTP Error " + res.status + " returned by backend.";
+        }
+      } catch (err) {
+        backendStatusBox.className = "p-3 rounded-xl text-xs font-mono bg-rose-950/50 text-rose-300 border border-rose-800/40 block";
+        backendStatusBox.textContent = "Connection failed: " + err.message + ". Check CORS or wait for Render to finish spinning up.";
+      }
+    });
+
+    // Helper to evaluate via Render AI Studio or Fallback
+    async function evaluateOralWithGemini(topic, question, studentAnswer, expectedKeywords) {
+      if (!configuredBackendUrl) return null; // fallback to local
+
+      try {
+        showToast("Consulting Gemini on Render...", "🤖");
+        const res = await fetch(configuredBackendUrl + "/api/evaluate-oral", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: topic,
+            question: question,
+            student_answer: studentAnswer,
+            expected_keywords: expectedKeywords
+          })
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (err) {
+        console.warn("Render backend call failed, using client heuristic:", err);
+      }
+      return null;
+    }
+
+  </script>
+
+    <!-- BACKEND CONFIG MODAL -->
+    <div id="backend-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">⚙️</span>
+            <h3 class="text-base font-extrabold text-white">Render Backend & AI Studio Settings</h3>
+          </div>
+          <button id="btn-close-backend-modal" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Connect this Cloudflare Pages frontend to your free Render Python backend powered by Google AI Studio (Gemini API) for real-time oral defense grading.
+        </p>
+
+        <div class="space-y-2">
+          <label for="backend-url-input" class="text-xs font-bold text-slate-200">Render Backend URL:</label>
+          <input id="backend-url-input" type="url" placeholder="https://deepvision-backend.onrender.com" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-cyan-300 font-mono placeholder-slate-600 focus:outline-none focus:border-cyan-400">
+          <p class="text-[11px] text-slate-500">Leave blank to use instant client-side heuristic evaluation, or paste your deployed Render URL.</p>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <button id="btn-test-backend" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700">
+            🔌 Test Connection
+          </button>
+          <button id="btn-save-backend" class="px-5 py-2 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-cyan-500/20">
+            Save & Connect
+          </button>
+        </div>
+
+        <div id="backend-status-box" class="hidden p-3 rounded-xl text-xs font-mono"></div>
+      </div>
+    </div>
+
+</body>
+</html>
