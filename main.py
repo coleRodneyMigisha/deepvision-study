@@ -66,9 +66,15 @@ COURSE_PROFILES = {
 
 
 def get_course_profile(course_id: Optional[str], course_name: Optional[str] = None) -> dict:
-    cid = (course_id or "cv").lower().strip()
+    cid = (course_id or "").lower().strip()
     if cid in COURSE_PROFILES:
         return COURSE_PROFILES[cid]
+    # Fallback check against course_name
+    cname = (course_name or "").lower().strip()
+    if "data science" in cname or "dsc" in cname:
+        return COURSE_PROFILES["ds"]
+    if "vision" in cname or "cv" in cname or "deep" in cname:
+        return COURSE_PROFILES["cv"]
     label = course_name or course_id or "University Computer Science"
     return {
         "name": label,
@@ -77,12 +83,16 @@ def get_course_profile(course_id: Optional[str], course_name: Optional[str] = No
 
 
 class OralEvaluationRequest(BaseModel):
-    course_id: Optional[str] = Field(default="cv", example="ds")
+    course_id: Optional[str] = Field(default=None, example="ds")
+    course: Optional[str] = Field(default=None, description="Alias for course_id")
     course_name: Optional[str] = Field(default=None, example="Data Science: Systems & Technologies")
     topic: str = Field(..., example="Convolutional Neural Networks (CNNs)")
     question: str = Field(..., example="Why does Max Pooling have zero learnable parameters, and why do we use it?")
     student_answer: str = Field(..., example="Max pooling selects the maximum value in a window. It has no weights. It downsamples spatial resolution to reduce parameters.")
     expected_keywords: Optional[List[str]] = Field(default=[], example=["zero parameters", "deterministic", "translation invariance", "downsample"])
+
+    def resolved_course_id(self) -> str:
+        return self.course_id or self.course or "ds"
 
 
 class OralEvaluationResponse(BaseModel):
@@ -100,29 +110,41 @@ class OralEvaluationResponse(BaseModel):
 
 
 class GenerateQuestionRequest(BaseModel):
-    course_id: Optional[str] = Field(default="cv", example="ds")
+    course_id: Optional[str] = Field(default=None, example="ds")
+    course: Optional[str] = Field(default=None, description="Alias for course_id")
     course_name: Optional[str] = Field(default=None)
     topic: str = Field(..., example="Transfer Learning")
     difficulty: Optional[str] = Field(default="moderate", example="tricky")
     avoid: Optional[List[str]] = Field(default=[], description="Questions already asked, to avoid repeats")
 
+    def resolved_course_id(self) -> str:
+        return self.course_id or self.course or "ds"
+
 
 class ChatStudyBuddyRequest(BaseModel):
-    course_id: Optional[str] = Field(default="cv", example="ds")
+    course_id: Optional[str] = Field(default=None, example="ds")
+    course: Optional[str] = Field(default=None, description="Alias for course_id")
     course_name: Optional[str] = Field(default=None)
     topic: Optional[str] = Field(default="General Study Topic")
     user_message: str = Field(...)
     history: Optional[List[dict]] = Field(default=[], description="[{role: 'user'|'model', text: str}]")
 
+    def resolved_course_id(self) -> str:
+        return self.course_id or self.course or "ds"
+
 
 class DailyChallengeRequest(BaseModel):
-    course_id: str = Field(default="ds", example="ds")
+    course_id: Optional[str] = Field(default=None, example="ds")
+    course: Optional[str] = Field(default=None, description="Alias for course_id")
     course_name: Optional[str] = Field(default=None)
     topic: str = Field(..., example="Streaming & Event-Time Watermarks")
     lab_title: Optional[str] = Field(default="")
     date_seed: Optional[str] = Field(default=None, description="YYYY-MM-DD date seed; defaults to today UTC")
     variation: Optional[int] = Field(default=1, description="Variation number so user can try multiple versions")
     avoid_questions: Optional[List[str]] = Field(default=[])
+
+    def resolved_course_id(self) -> str:
+        return self.course_id or self.course or "ds"
 
 
 def _post_generate(model: str, payload: dict) -> str:
@@ -242,7 +264,7 @@ def evaluate_oral_defense(req: OralEvaluationRequest):
     Evaluates a student's oral exam or checkpoint answer using Google AI Studio Gemini API
     against the 3-Beat Oral Defense rubric (Claim, Mechanism, Trade-off).
     """
-    profile = get_course_profile(req.course_id, req.course_name)
+    profile = get_course_profile(req.resolved_course_id(), req.course_name)
     if not GEMINI_API_KEY:
         logger.warning("GEMINI_API_KEY not configured. Running offline heuristic fallback.")
         matches = [kw for kw in (req.expected_keywords or []) if kw.lower() in req.student_answer.lower()]
@@ -319,7 +341,7 @@ Evaluate the student's answer and output ONLY a JSON object with this exact stru
 @app.post("/api/generate-question")
 def generate_oral_question(req: GenerateQuestionRequest):
     """Generates an unexpected, realistic oral exam question for a given course and topic."""
-    profile = get_course_profile(req.course_id, req.course_name)
+    profile = get_course_profile(req.resolved_course_id(), req.course_name)
     if not GEMINI_API_KEY:
         return {
             "question": f"In {req.topic}, explain the primary architectural trade-off and how you diagnose failure modes in production.",
@@ -358,12 +380,13 @@ def generate_daily_challenge(req: DailyChallengeRequest):
     Generates a daily changing, multi-step numerical/engineering lab challenge
     so students can attempt fresh variations of a lab concept every day.
     """
+    cid = req.resolved_course_id()
     today = req.date_seed or datetime.date.today().isoformat()
-    cache_key = f"{today}:{req.course_id}:{req.topic}:{req.variation}"
+    cache_key = f"{today}:{cid}:{req.topic}:{req.variation}"
     if cache_key in _daily_challenge_cache and not req.avoid_questions:
         return _daily_challenge_cache[cache_key]
 
-    profile = get_course_profile(req.course_id, req.course_name)
+    profile = get_course_profile(cid, req.course_name)
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY not configured for AI daily challenge")
 
@@ -415,7 +438,8 @@ Return ONLY valid JSON with this exact schema:
 @app.post("/api/chat")
 def study_buddy_chat(req: ChatStudyBuddyRequest):
     """Interactive Socratic tutor helping the student master any course module."""
-    profile = get_course_profile(req.course_id, req.course_name)
+    cid = req.resolved_course_id()
+    profile = get_course_profile(cid, req.course_name)
     if not GEMINI_API_KEY:
         return {
             "reply": (
@@ -426,7 +450,9 @@ def study_buddy_chat(req: ChatStudyBuddyRequest):
         }
 
     system_instruction = (
-        f"You are an encouraging, brilliant study buddy for '{profile['name']}' preparing a student for an exam and lab defense. "
+        f"You are an encouraging, brilliant university study buddy for '{profile['name']}' ({cid.upper()}) preparing a student for an exam and lab defense. "
+        f"STRICT INSTRUCTION: Only reference concepts, terminology, algorithms, and examples relevant to '{profile['name']}'. "
+        f"Do NOT reference unrelated courses (for example, if tutoring {profile['name']}, do NOT mention Computer Vision, pixels, image recognition, or CNNs unless specifically asked by the student). "
         "Explain concepts intuitively from first principles, as if to a curious student. Use short paragraphs, "
         "simple Markdown (bold, bullet lists, inline code), and concrete numbers or examples from the labs. "
         "Keep replies under ~200 words unless asked for more, and end with one quick checkpoint question. "
